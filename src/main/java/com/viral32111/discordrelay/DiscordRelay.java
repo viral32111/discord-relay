@@ -5,18 +5,25 @@ package com.viral32111.discordrelay;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import java.io.File;
+import java.io.OutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.event.EventHandler;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.newsclub.net.unix.AFUNIXServerSocket;
+import org.newsclub.net.unix.AFUNIXSocket;
+import org.newsclub.net.unix.AFUNIXSocketAddress;
 
 // Create the main class
 @SuppressWarnings( { "unused" } )
@@ -26,6 +33,9 @@ public class DiscordRelay extends JavaPlugin implements Listener {
 	private URI chatWebhook;
 	private String userAgentHeader, fromHeader;
 	private HttpClient webhookClient;
+	private AFUNIXServerSocket relayServer;
+	private File relayFile;
+	private BukkitTask relayListenTask;
 
 	// Creates a JSON string to use as the webhook payload
 	private String createWebhookPayload( String content, Player player ) {
@@ -61,13 +71,42 @@ public class DiscordRelay extends JavaPlugin implements Listener {
 		if ( fromHeader != null ) requestBuilder.header( "From", fromHeader );
 		HttpRequest request = requestBuilder.build();
 
-		// Safely execute that HTTP request...
+		// Safely execute that HTTP request
 		try {
 			webhookClient.send( request, HttpResponse.BodyHandlers.ofString() );
 		} catch ( Exception exception ) {
-			getLogger().severe( exception.getMessage() );
+			exception.printStackTrace();
 		}
-		
+
+	}
+
+	// Listens for incoming connections to the unix domain socket...
+	private void relayListen() {
+
+		// Loop forever if the relay server is valid
+		while ( relayServer != null ) {
+
+			// Stop looping if the relay server is closed
+			if ( relayServer.isClosed() ) break;
+
+			// Safely accept new connections, send them example data, then disconnect them
+			try {
+				AFUNIXSocket clientSocket = relayServer.accept();
+				System.out.println( "New connection from " + clientSocket.getRemoteSocketAddress() );
+
+				System.out.println( "Sending data to " + clientSocket.getRemoteSocketAddress() );
+				OutputStream outputStream = clientSocket.getOutputStream();
+				outputStream.write( "HELLO_WORLD\n".getBytes( StandardCharsets.UTF_8 ) );
+				outputStream.flush();
+
+				System.out.println( "Goodbye " + clientSocket.getRemoteSocketAddress() );
+				clientSocket.close();
+			} catch ( Exception exception ) {
+				exception.printStackTrace();
+			}
+
+		}
+
 	}
 
 	// Runs when the plugin is loaded...
@@ -92,11 +131,26 @@ public class DiscordRelay extends JavaPlugin implements Listener {
 		userAgentHeader = getConfig().getString( "http.user-agent" );
 		fromHeader = getConfig().getString( "http.from" );
 
+		// Load the unix socket path from the configuration file
+		String relayPath = getConfig().getString( "socket.path" );
+
 		// Register the event listeners
 		getServer().getPluginManager().registerEvents( this, this );
 
 		// Create a new HTTP client for executing webhooks
 		webhookClient = HttpClient.newHttpClient();
+
+		// Safely ereate the unix domain socket and start listening for incoming connections
+		if ( relayPath != null ) {
+			try {
+				relayFile = new File( relayPath );
+				relayServer = AFUNIXServerSocket.newInstance();
+				relayServer.bind( new AFUNIXSocketAddress( relayFile ) );
+				relayListenTask = getServer().getScheduler().runTaskAsynchronously( this, this::relayListen );
+			} catch ( Exception exception ) {
+				exception.printStackTrace();
+			}
+		}
 
 		// Send a now online message when the server finishes loading
 		getServer().getScheduler().runTaskLater( this, () -> executeWebhook( chatWebhook, createWebhookPayload( ":desktop: The server is now online!", null ) ), 1 );
@@ -105,6 +159,15 @@ public class DiscordRelay extends JavaPlugin implements Listener {
 
 	// Runs when the plugin is unloaded...
 	@Override public void onDisable() {
+
+		// Close unix domain socket
+		try {
+			relayListenTask.cancel();
+			relayServer.close();
+			relayFile.delete();
+		} catch ( Exception exception ) {
+			exception.printStackTrace();
+		}
 
 		// Send a now offline message
 		executeWebhook( chatWebhook, createWebhookPayload( ":coffin: The server has gone offline.", null ) );

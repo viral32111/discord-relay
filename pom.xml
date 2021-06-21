@@ -25,5 +25,11 @@
 			<version>1.17-R0.1-SNAPSHOT</version>
 			<scope>provided</scope>
 		</dependency>
+
+		<dependency>
+			<groupId>com.kohlschutter.junixsocket</groupId>
+			<artifactId>junixsocket-server</artifactId>
+			<version>2.3.3</version>
+		</dependency>
 	</dependencies>
 </project>

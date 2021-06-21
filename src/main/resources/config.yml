@@ -21,3 +21,9 @@ http:
 
     # The value to use as the From header
     from: "example@example.com"
+
+# The unix domain socket configuration
+socket:
+
+    # The location to create the socket file
+    path: "/var/run/minecraft/relay.sock"
