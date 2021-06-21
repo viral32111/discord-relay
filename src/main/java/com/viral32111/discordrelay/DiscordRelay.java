@@ -41,7 +41,7 @@ public class DiscordRelay extends JavaPlugin implements Listener {
 		// Add the player's nickname and avatar to the payload, if applicable
 		if ( player != null ) {
 			payload.put( "username", PlainTextComponentSerializer.plainText().serialize( player.displayName() ) );
-			payload.put( "avatar_url", String.format( "https://crafatar.com/avatars/%s.png?overlay", player.getUniqueId() ) );
+			payload.put( "avatar_url", String.format( "https://crafthead.net/helm/%s", player.getUniqueId() ) );
 		}
 
 		// Convert the dictionary to a JSON string then return it
