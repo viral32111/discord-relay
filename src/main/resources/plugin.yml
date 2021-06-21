@@ -1,0 +1,13 @@
+# Plugin details
+name: DiscordRelay
+description: A plugin to relay chat between Discord and Minecraft.
+version: 0.2.0
+
+# My information
+author: viral32111
+website: https://viral32111.com
+
+# Code
+main: com.viral32111.discordrelay.DiscordRelay
+api-version: 1.17
+prefix: DiscordRelay

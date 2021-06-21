@@ -1,0 +1,23 @@
+# This is the configuration file for DiscordRelay v0.2.0
+# Contact me at https://viral32111.com/contact if you need help.
+
+# The Discord webhook configuration
+webhooks:
+
+    # The webhook URL for the #chat messages
+    chat: "https://discord.com/api/webhooks/ID/TOKEN"
+
+    # The webhook URL for the #logs messages
+    logs: "https://discord.com/api/webhooks/ID/TOKEN"
+
+    # The webhook URL for the #console messages
+    console: "https://discord.com/api/webhooks/ID/TOKEN"
+
+# The HTTP header configuration
+http:
+
+    # The value to use as the User-Agent header
+    user-agent: "Minecraft Server"
+
+    # The value to use as the From header
+    from: "example@example.com"
