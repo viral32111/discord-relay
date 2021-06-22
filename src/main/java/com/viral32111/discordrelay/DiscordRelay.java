@@ -2,6 +2,10 @@
 package com.viral32111.discordrelay;
 
 // Import dependencies
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextComponent;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.entity.Player;
@@ -9,6 +13,7 @@ import org.bukkit.scheduler.BukkitTask;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import java.io.File;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -16,11 +21,13 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.HashSet;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.event.EventHandler;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.json.simple.parser.JSONParser;
 import org.newsclub.net.unix.AFUNIXServerSocket;
 import org.newsclub.net.unix.AFUNIXSocket;
 import org.newsclub.net.unix.AFUNIXSocketAddress;
@@ -36,6 +43,7 @@ public class DiscordRelay extends JavaPlugin implements Listener {
 	private AFUNIXServerSocket relayServer;
 	private File relayFile;
 	private BukkitTask relayListenTask;
+	private long doneLoadingUnixTimestamp;
 
 	// Creates a JSON string to use as the webhook payload
 	private String createWebhookPayload( String content, Player player ) {
@@ -43,7 +51,7 @@ public class DiscordRelay extends JavaPlugin implements Listener {
 		// Create a dictionary from the provided content, with all @mentions disabled
 		HashMap<String, Object> payload = new HashMap<>() {{
 			put( "content", content );
-			put( "allowed_mentions", new HashMap<>() {{
+			put( "allowed_mentions", new HashMap<String, Object>() {{
 				put( "parse", new JSONArray() );
 			}} );
 		}};
@@ -92,14 +100,89 @@ public class DiscordRelay extends JavaPlugin implements Listener {
 			// Safely accept new connections, send them example data, then disconnect them
 			try {
 				AFUNIXSocket clientSocket = relayServer.accept();
-				System.out.println( "New connection from " + clientSocket.getRemoteSocketAddress() );
-
-				System.out.println( "Sending data to " + clientSocket.getRemoteSocketAddress() );
+				InputStream inputStream = clientSocket.getInputStream();
 				OutputStream outputStream = clientSocket.getOutputStream();
-				outputStream.write( "HELLO_WORLD\n".getBytes( StandardCharsets.UTF_8 ) );
+
+				byte[] inputBuffer = new byte[ 1024 ];
+				int bytesRead = inputStream.read( inputBuffer );
+				JSONObject payload = ( JSONObject ) new JSONParser().parse( new String( inputBuffer, 0, bytesRead, StandardCharsets.UTF_8 ) );
+
+				/* Types:
+					0: Fetch Status
+					1: Chat Message (has data.username, data.color & data.content)
+					2: Remote Command
+				*/
+
+				/* Statuses:
+					0: Success (data may be empty)
+					1: Error (see data.reason)
+				*/
+
+				long type = ( long ) payload.get( "type" );
+				JSONObject data = ( JSONObject ) payload.get( "data" );
+
+				HashMap<String, Object> response = new HashMap<>();
+
+				if ( type == 0 ) {
+					// needs cpu & memory usage
+
+					HashSet<JSONObject> players = new HashSet<>();
+					for ( Player player : getServer().getOnlinePlayers() ) {
+						players.add( new JSONObject( new HashMap<String, String>() {{
+							put( "username", player.getName() );
+							put( "nickname", PlainTextComponentSerializer.plainText().serialize( player.displayName() ) );
+							put( "uuid", player.getUniqueId().toString() );
+						}} ) );
+					}
+
+					response.put( "status", 0 );
+					response.put( "data", new HashMap<>() {{
+						put( "loaded_at", doneLoadingUnixTimestamp );
+						put( "tps", new HashMap<String, Double>() {{
+							put( "1m", getServer().getTPS()[ 0 ] );
+							put( "5m", getServer().getTPS()[ 1 ] );
+							put( "15m", getServer().getTPS()[ 2 ] );
+						}} );
+						put( "version", new HashMap<String, String>() {{
+							put( "name", getServer().getName() );
+							put( "native", getServer().getVersion() );
+							put( "bukkit", getServer().getBukkitVersion() );
+							put( "minecraft", getServer().getMinecraftVersion() );
+						}} );
+						put( "players", players );
+					}} );
+
+				} else if ( type == 1 ) {
+					String username = ( String ) data.get( "username" );
+					long color = ( long ) data.get( "color" );
+					String content = ( String ) data.get( "content" );
+
+					TextComponent.Builder messageComponentBuilder = Component.text();
+					messageComponentBuilder.append( Component.text( "(Discord) ", TextColor.color( 0x5865F2 ) ) );
+					messageComponentBuilder.append( Component.text( username, TextColor.color( Math.round( color ) ) ) );
+					messageComponentBuilder.append( Component.text( ": " + content, NamedTextColor.WHITE ) );
+
+					getServer().broadcast( messageComponentBuilder.build() );
+
+					response.put( "status", 0 );
+					response.put( "data", new HashMap<String, Object>() );
+
+				} else if ( type == 2 ) {
+					response.put( "status", 1 );
+					response.put( "data", new HashMap<String, Object>() {{
+						put( "reason", "Not implemented yet." );
+					}} );
+
+				} else {
+					response.put( "status", 1 );
+					response.put( "data", new HashMap<String, Object>() {{
+						put( "reason", "Unknown type." );
+					}} );
+				}
+
+				outputStream.write( new JSONObject( response ).toJSONString().getBytes( StandardCharsets.UTF_8 ) );
 				outputStream.flush();
 
-				System.out.println( "Goodbye " + clientSocket.getRemoteSocketAddress() );
 				clientSocket.close();
 			} catch ( Exception exception ) {
 				exception.printStackTrace();
@@ -153,7 +236,10 @@ public class DiscordRelay extends JavaPlugin implements Listener {
 		}
 
 		// Send a now online message when the server finishes loading
-		getServer().getScheduler().runTaskLater( this, () -> executeWebhook( chatWebhook, createWebhookPayload( ":desktop: The server is now online!", null ) ), 1 );
+		getServer().getScheduler().runTaskLater( this, () -> {
+			doneLoadingUnixTimestamp = System.currentTimeMillis();
+			executeWebhook( chatWebhook, createWebhookPayload( ":desktop: The server is now online!", null ) );
+		}, 1 );
 
 	}
 
@@ -176,23 +262,35 @@ public class DiscordRelay extends JavaPlugin implements Listener {
 
 	// Runs when a player joins the server...
 	@EventHandler public void onPlayerJoin( PlayerJoinEvent event ) {
-		String playerNickname = PlainTextComponentSerializer.plainText().serialize( event.getPlayer().displayName() );
 
-		getServer().getScheduler().runTaskAsynchronously( this, () -> executeWebhook( chatWebhook, createWebhookPayload( String.format( ":wave_tone1: %s joined!", playerNickname ), null ) ));
+		// Get the plaintext representation of the player's nickname
+		String nickname = PlainTextComponentSerializer.plainText().serialize( event.getPlayer().displayName() );
+
+		// Send a player joined message
+		getServer().getScheduler().runTaskAsynchronously( this, () -> executeWebhook( chatWebhook, createWebhookPayload( String.format( ":wave_tone1: %s joined!", nickname ), null ) ));
+
 	}
 
 	// Runs when a player leaves the server...
 	@EventHandler public void onPlayerQuit( PlayerQuitEvent event ) {
-		String playerNickname = PlainTextComponentSerializer.plainText().serialize( event.getPlayer().displayName() );
 
-		getServer().getScheduler().runTaskAsynchronously( this, () -> executeWebhook( chatWebhook, createWebhookPayload( String.format( ":wave_tone1: %s left.", playerNickname ), null ) ));
+		// Get the plaintext representation of the player's nickname
+		String nickname = PlainTextComponentSerializer.plainText().serialize( event.getPlayer().displayName() );
+
+		// Send a player left message
+		getServer().getScheduler().runTaskAsynchronously( this, () -> executeWebhook( chatWebhook, createWebhookPayload( String.format( ":wave_tone1: %s left.", nickname ), null ) ));
+
 	}
 
 	// Runs when a player sends a message in chat...
 	@EventHandler public void onAsyncChat( AsyncChatEvent event ) {
+
+		// Get the plaintext representation of the player's message
 		String message = PlainTextComponentSerializer.plainText().serialize( event.message() );
 
+		// Send a chat message
 		getServer().getScheduler().runTaskAsynchronously( this, () -> executeWebhook( chatWebhook, createWebhookPayload( message, event.getPlayer() ) ));
+
 	}
 
 }
