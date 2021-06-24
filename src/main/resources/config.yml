@@ -32,7 +32,10 @@ socket:
 category:
 
     # The channel ID of the category
-    id: 12345678987654321
+    id: "12345678987654321"
+
+    # The token for the bot that the update will be performed on behalf of
+    token: "abcdefghijklmnopqrstuvwxyz"
 
     # The template for updating the name (%s will be replaced by the current status)
-    template: "🌳 Minecraft (%s)"
+    template: "Minecraft (%s)"

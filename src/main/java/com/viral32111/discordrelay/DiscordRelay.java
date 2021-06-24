@@ -1,18 +1,30 @@
 // The package this is for
 package com.viral32111.discordrelay;
 
-// Import dependencies
+// Import third-party dependencies
+import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
-import org.bukkit.event.Listener;
-import org.bukkit.plugin.java.JavaPlugin;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.newsclub.net.unix.AFUNIXServerSocket;
+import org.newsclub.net.unix.AFUNIXSocket;
+import org.newsclub.net.unix.AFUNIXSocketAddress;
+
+// Import native dependencies
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
@@ -22,28 +34,21 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.HashSet;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
-import org.bukkit.event.EventHandler;
-import io.papermc.paper.event.player.AsyncChatEvent;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
-import org.json.simple.parser.JSONParser;
-import org.newsclub.net.unix.AFUNIXServerSocket;
-import org.newsclub.net.unix.AFUNIXSocket;
-import org.newsclub.net.unix.AFUNIXSocketAddress;
 
 // Create the main class
 @SuppressWarnings( { "unused" } )
 public class DiscordRelay extends JavaPlugin implements Listener {
 
 	// Define global variables
-	private URI chatWebhook;
-	private String userAgentHeader, fromHeader;
-	private HttpClient webhookClient;
+	private URI chatWebhook, categoryUpdateURI;
+	private String userAgentHeader, fromHeader, categoryTemplate, categoryBotToken, categoryLatestStatus;
+	private HttpClient discordHTTPClient;
 	private AFUNIXServerSocket relayServer;
 	private File relayFile;
 	private BukkitTask relayListenTask;
 	private long doneLoadingUnixTimestamp;
+	private short categoryUpdateCounter;
+	private boolean isResetCategoryUpdateCooldownRunning = false;
 
 	// Creates a JSON string to use as the webhook payload
 	private String createWebhookPayload( String content, Player player ) {
@@ -81,10 +86,82 @@ public class DiscordRelay extends JavaPlugin implements Listener {
 
 		// Safely execute that HTTP request
 		try {
-			webhookClient.send( request, HttpResponse.BodyHandlers.ofString() );
+			HttpResponse<String> response = discordHTTPClient.send( request, HttpResponse.BodyHandlers.ofString() );
+			if ( response.statusCode() >= 400 ) throw new Exception( "Received status code %d".formatted( response.statusCode() ) );
 		} catch ( Exception exception ) {
 			exception.printStackTrace();
 		}
+
+	}
+
+	// Updates the status of the category
+	private void updateCategoryStatus( String newStatus ) {
+
+		// Silently fail if the category config is not set
+		if ( categoryUpdateURI != null ) {
+
+			// If the limit has been hit
+			if ( categoryUpdateCounter >= 2 ) {
+
+				// Update the latest category status variable so the task will deal with it when it next resets
+				categoryLatestStatus = newStatus;
+
+			// The limit has not been hit
+			} else {
+
+				// Clear the most recent category status
+				categoryLatestStatus = null;
+
+				// Create the JSON payload for updating the name
+				String payload = new JSONObject( new HashMap<>() {{
+					put( "name", categoryTemplate.formatted( newStatus ) );
+				}} ).toJSONString();
+
+				// Create a new HTTP request to POST the webhook JSON payload
+				HttpRequest.Builder requestBuilder = HttpRequest.newBuilder();
+				requestBuilder.uri( categoryUpdateURI );
+				requestBuilder.method( "PATCH", HttpRequest.BodyPublishers.ofString( payload ) );
+				requestBuilder.header( "Content-Type", "application/json" );
+				requestBuilder.header( "Authorization", "Bot %s".formatted( categoryBotToken ) );
+				requestBuilder.header( "X-Audit-Log-Reason", "The Minecraft server's status has changed." );
+				if ( userAgentHeader != null ) requestBuilder.header( "User-Agent", userAgentHeader );
+				if ( fromHeader != null ) requestBuilder.header( "From", fromHeader );
+				HttpRequest request = requestBuilder.build();
+
+				// Increment category update counter
+				categoryUpdateCounter++;
+
+				// Start the background task for resetting the counter
+				if ( !isResetCategoryUpdateCooldownRunning ) {
+					getServer().getScheduler().runTaskLaterAsynchronously( this, this::resetCategoryUpdateCooldown, 20 * 600 );
+					isResetCategoryUpdateCooldownRunning = true;
+				}
+
+				// Safely execute that HTTP request
+				try {
+					HttpResponse<String> response = discordHTTPClient.send( request, HttpResponse.BodyHandlers.ofString() );
+					if ( response.statusCode() >= 400 ) throw new Exception( "Received status code %d".formatted( response.statusCode() ) );
+				} catch ( Exception exception ) {
+					exception.printStackTrace();
+				}
+
+			}
+
+		}
+
+	}
+
+	// Resets the 2 per 10 min cooldown for channel name updates
+	private void resetCategoryUpdateCooldown() {
+
+		// Reset the counter
+		categoryUpdateCounter = 0;
+
+		//  Resend the latest category status, if one exists
+		if ( categoryLatestStatus != null ) updateCategoryStatus( categoryLatestStatus );
+
+		// No longer running
+		isResetCategoryUpdateCooldownRunning = false;
 
 	}
 
@@ -160,7 +237,7 @@ public class DiscordRelay extends JavaPlugin implements Listener {
 					TextComponent.Builder messageComponentBuilder = Component.text();
 					messageComponentBuilder.append( Component.text( "(Discord) ", TextColor.color( 0x5865F2 ) ) );
 					messageComponentBuilder.append( Component.text( username, TextColor.color( Math.round( color ) ) ) );
-					messageComponentBuilder.append( Component.text( ": " + content, NamedTextColor.WHITE ) );
+					messageComponentBuilder.append( Component.text( "%s: ".formatted( content ), NamedTextColor.WHITE ) );
 
 					getServer().broadcast( messageComponentBuilder.build() );
 
@@ -217,11 +294,21 @@ public class DiscordRelay extends JavaPlugin implements Listener {
 		// Load the unix socket path from the configuration file
 		String relayPath = getConfig().getString( "socket.path" );
 
+		// Load the category config from the configuration file
+		categoryTemplate = getConfig().getString( "category.template" );
+		categoryBotToken = getConfig().getString( "category.token" );
+		String categoryID = getConfig().getString( "category.id" );
+
+		// Set the category update URL if the config values have values
+		if ( categoryTemplate != null && categoryBotToken != null && categoryID != null ) {
+			categoryUpdateURI = URI.create( "https://discord.com/api/v9/channels/%s".formatted( categoryID ) );
+		}
+
 		// Register the event listeners
 		getServer().getPluginManager().registerEvents( this, this );
 
-		// Create a new HTTP client for executing webhooks
-		webhookClient = HttpClient.newHttpClient();
+		// Create a new HTTP client for sending data to the Discord API
+		discordHTTPClient = HttpClient.newHttpClient();
 
 		// Safely ereate the unix domain socket and start listening for incoming connections
 		if ( relayPath != null ) {
@@ -235,10 +322,18 @@ public class DiscordRelay extends JavaPlugin implements Listener {
 			}
 		}
 
-		// Send a now online message when the server finishes loading
+		// When the server finishes loading...
 		getServer().getScheduler().runTaskLater( this, () -> {
+
+			// Store the current unix timestamp to use for calculating the server's uptime
 			doneLoadingUnixTimestamp = System.currentTimeMillis();
+
+			// Send a now online message
 			executeWebhook( chatWebhook, createWebhookPayload( ":desktop: The server is now online!", null ) );
+
+			// Update the category status
+			updateCategoryStatus( "Empty" );
+
 		}, 1 );
 
 	}
@@ -250,13 +345,19 @@ public class DiscordRelay extends JavaPlugin implements Listener {
 		try {
 			relayListenTask.cancel();
 			relayServer.close();
-			relayFile.delete();
+			if ( !relayFile.delete() ) throw new IOException( "Failed to delete relay socket file" );
 		} catch ( Exception exception ) {
 			exception.printStackTrace();
 		}
 
 		// Send a now offline message
 		executeWebhook( chatWebhook, createWebhookPayload( ":coffin: The server has gone offline.", null ) );
+
+		// Prevent creating a new background task for resetting the category updater counter
+		isResetCategoryUpdateCooldownRunning = true;
+
+		// Update the category status
+		updateCategoryStatus( "Offline" );
 
 	}
 
@@ -266,8 +367,16 @@ public class DiscordRelay extends JavaPlugin implements Listener {
 		// Get the plaintext representation of the player's nickname
 		String nickname = PlainTextComponentSerializer.plainText().serialize( event.getPlayer().displayName() );
 
-		// Send a player joined message
-		getServer().getScheduler().runTaskAsynchronously( this, () -> executeWebhook( chatWebhook, createWebhookPayload( String.format( ":wave_tone1: %s joined!", nickname ), null ) ));
+		// Run asyncronously...
+		getServer().getScheduler().runTaskAsynchronously( this, () -> {
+
+			// Send a player joined message
+			executeWebhook( chatWebhook, createWebhookPayload( String.format( ":wave_tone1: %s joined!", nickname ), null ) );
+
+			// Update the category status
+			updateCategoryStatus( "%d Playing".formatted( getServer().getOnlinePlayers().size() ) );
+
+		} );
 
 	}
 
@@ -277,8 +386,21 @@ public class DiscordRelay extends JavaPlugin implements Listener {
 		// Get the plaintext representation of the player's nickname
 		String nickname = PlainTextComponentSerializer.plainText().serialize( event.getPlayer().displayName() );
 
-		// Send a player left message
-		getServer().getScheduler().runTaskAsynchronously( this, () -> executeWebhook( chatWebhook, createWebhookPayload( String.format( ":wave_tone1: %s left.", nickname ), null ) ));
+		// Run asyncronously...
+		getServer().getScheduler().runTaskAsynchronously( this, () -> {
+
+			// Send a player left message
+			executeWebhook( chatWebhook, createWebhookPayload( String.format( ":wave_tone1: %s left.", nickname ), null ) );
+
+			// Update the category status
+			int playerCount = getServer().getOnlinePlayers().size();
+			if ( playerCount > 0 ) {
+				updateCategoryStatus( "%d Playing".formatted( playerCount ) );
+			} else {
+				updateCategoryStatus( "Empty" );
+			}
+
+		} );
 
 	}
 
