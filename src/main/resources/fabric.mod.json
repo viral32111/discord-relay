@@ -1,39 +1,39 @@
 {
-  "schemaVersion": 1,
-  "id": "discordrelay",
-  "version": "${version}",
-  "name": "Discord Relay",
-  "description": "Integrates the game with Discord.",
-  "authors": [
-    {
-      "name": "viral32111",
-      "contact": {
-        "homepage": "https://viral32111.com/contact",
-        "email": "contact@viral32111.com"
-      }
-    }
-  ],
-  "contact": {
-    "homepage": "https://viral32111.com/contact",
-    "email": "contact@viral32111.com"
-  },
-  "license": "AGPL-3.0-only",
-  "environment": "server",
-  "entrypoints": {
-    "server": [
-      "com.viral32111.discordrelay.DiscordRelay"
-    ]
-  },
-  "mixins": [
-    {
-      "config": "discordrelay.mixins.json",
-      "environment": "server"
-    }
-  ],
-  "depends": {
-    "fabricloader": ">=0.11.3",
-    "fabric": "*",
-    "minecraft": "1.18.x",
-    "java": ">=17"
-  }
+	"schemaVersion": 1,
+
+	"id": "discordrelay",
+	"version": "${version}",
+
+	"name": "Discord Relay",
+	"description": "Relays chat messages between Minecraft and Discord.",
+	"authors": [ {
+		"name": "viral32111",
+		"contact": {
+			"homepage": "https://viral32111.com",
+			"email": "contact@viral32111.com"
+		}
+	} ],
+	"contributors": [],
+	"contact": {
+		"homepage": "https://github.com/viral32111/DiscordRelay",
+		"sources": "https://github.com/viral32111/DiscordRelay",
+		"issues": "https://github.com/viral32111/DiscordRelay/issues"
+	},
+	"license": "AGPL-3.0-only",
+
+	"environment": "server",
+	"entrypoints": {
+		"server": [ "com.viral32111.discordrelay.DiscordRelay" ]
+	},
+	"mixins": [ {
+		"environment": "server",
+		"config": "discordrelay.mixins.json"
+	} ],
+
+	"depends": {
+		"fabricloader": ">=0.14.6",
+		"fabric": "*",
+		"minecraft": "~1.19",
+		"java": ">=17"
+	}
 }

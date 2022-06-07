@@ -27,7 +27,6 @@ import java.net.http.HttpResponse;
 import java.net.http.WebSocket;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
-
 public class DiscordRelay implements DedicatedServerModInitializer {
 	public static final HttpClient httpClient = HttpClient.newHttpClient();
 	public static final Logger logger = LogManager.getLogger();

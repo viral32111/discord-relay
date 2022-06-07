@@ -10,6 +10,7 @@ classes/
 *.ipr
 *.iws
 out/
+remappedSrc/
 
 # Fabric
 run/
