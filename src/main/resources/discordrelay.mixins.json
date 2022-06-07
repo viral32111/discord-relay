@@ -1,0 +1,17 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.viral32111.discordrelay.mixin",
+  "compatibilityLevel": "JAVA_16",
+  "mixins": [
+  ],
+  "server": [
+    "PlayerAdvancementTrackerMixin",
+    "PlayerManagerMixin",
+    "ServerPlayNetworkHandlerMixin",
+    "ServerPlayerEntityMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
