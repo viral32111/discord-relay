@@ -1,6 +1,8 @@
-# DiscordRelay
+# Discord Relay
 
-A plugin to relay chat between Discord and Minecraft.
+A plugin for [Paper](https://papermc.io/) to relay chat between Discord and Minecraft.
+
+I no longer for Paper, as I switched to using [Fabric](https://fabricmc.net/) for my community Minecraft server, so development has continued on the [fabric](https://github.com/viral32111/DiscordRelay/tree/fabric) branch. 
 
 ## License
 
