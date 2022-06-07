@@ -9,9 +9,7 @@ classes/
 *.iml
 *.ipr
 *.iws
+out/
 
 # Fabric
 run/
-
-# Custom
-remappedSrc/
