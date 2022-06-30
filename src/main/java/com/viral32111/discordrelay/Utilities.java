@@ -4,7 +4,6 @@ import com.google.gson.JsonObject;
 import net.minecraft.server.network.ServerPlayerEntity;
 
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.ZoneId;
@@ -45,10 +44,10 @@ public class Utilities {
 	}
 
 	public static String getPlayerName( ServerPlayerEntity player ) {
-		if ( player.getName().asString().equals( player.getDisplayName().asString() ) ) {
-			return player.getName().asString();
+		if ( player.getName().getString().equals( player.getDisplayName().getString() ) ) {
+			return player.getName().getString();
 		} else {
-			return String.format( "%s (%s)", player.getDisplayName().asString(), player.getName().asString() );
+			return String.format( "%s (%s)", player.getDisplayName().getString(), player.getName().getString() );
 		}
 	}
 

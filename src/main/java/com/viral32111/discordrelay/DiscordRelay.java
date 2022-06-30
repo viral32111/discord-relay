@@ -8,14 +8,12 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.network.ClientConnection;
-import net.minecraft.network.MessageType;
+import net.minecraft.network.message.MessageType;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.LiteralText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import net.minecraft.text.TextColor;
-import net.minecraft.util.Util;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
@@ -56,13 +54,13 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 	}*/
 
 	public static void broadcastDiscordMessage( String author, String content ) {
-		Text a = new LiteralText( "(Discord) " ).setStyle( Style.EMPTY.withColor( TextColor.parse( "blue" ) ) );
-		Text b = new LiteralText( author ).setStyle( Style.EMPTY.withColor( TextColor.parse( "green" ) ) );
-		Text c = new LiteralText( String.format( ": %s", content ) ).setStyle( Style.EMPTY.withColor( TextColor.parse( "white" ) ) );
-		Text message = new LiteralText( "" ).append( a ).append( b ).append( c );
+		Text a = Text.literal( "(Discord) " ).setStyle( Style.EMPTY.withColor( TextColor.parse( "blue" ) ) );
+		Text b = Text.literal( author ).setStyle( Style.EMPTY.withColor( TextColor.parse( "green" ) ) );
+		Text c = Text.literal( String.format( ": %s", content ) ).setStyle( Style.EMPTY.withColor( TextColor.parse( "white" ) ) );
+		Text message = Text.literal( "" ).append( a ).append( b ).append( c );
 		logger.info( message.getString() );
 
-		minecraftServer.getPlayerManager().broadcast( message, MessageType.SYSTEM, Util.NIL_UUID );
+		minecraftServer.getPlayerManager().broadcast( message, MessageType.SYSTEM );
 		//minecraftServer.getPlayerManager().broadcast( Text.of( String.format( "%s: %s", author, content ) ), MessageType.SYSTEM, Util.NIL_UUID );
 	}
 
@@ -225,7 +223,7 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 
 	private void onPlayerConnect( ServerPlayerEntity player, ClientConnection connection ) {
 		// Send message to the console
-		logger.info( "Relaying player '{}' join message...", player.getName().asString() );
+		logger.info( "Relaying player '{}' join message...", player.getName().getString() );
 
 		// Send message to relay
 		JsonObject relayAuthor = new JsonObject();
@@ -299,7 +297,7 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		if ( player.getServer().isStopped() ) return;
 
 		// Send message to console
-		logger.info( "Relaying player '{}' leave message...", player.getName().asString() );
+		logger.info( "Relaying player '{}' leave message...", player.getName().getString() );
 
 		// Send message to relay
 		JsonObject relayEmbedAuthor = new JsonObject();
@@ -362,7 +360,7 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 
 	private void onPlayerChat( ServerPlayerEntity player, String message ) {
 		// Send message to console
-		logger.info( "Relaying player '{}' chat message '{}'...", player.getName().asString(), message );
+		logger.info( "Relaying player '{}' chat message '{}'...", player.getName().getString(), message );
 
 		// Send message to relay
 		JsonObject relayPayload = new JsonObject();
@@ -378,7 +376,7 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 
 	private void onPlayerAdvancement( ServerPlayerEntity player, String name, String criterion, String type ) {
 		// Send message to console
-		logger.info( "Relaying player '{}' leave message...", player.getName().asString() );
+		logger.info( "Relaying player '{}' leave message...", player.getName().getString() );
 
 		// Send message to relay
 		JsonObject relayEmbedAuthor = new JsonObject();
@@ -460,7 +458,7 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 
 	private void onPlayerDeath( ServerPlayerEntity player, DamageSource damageSource ) {
 		// Send message to console
-		logger.info( "Relaying player '{}' death message...", player.getName().asString() );
+		logger.info( "Relaying player '{}' death message...", player.getName().getString() );
 
 		// Send message to relay
 		JsonObject relayEmbedAuthor = new JsonObject();
@@ -492,7 +490,7 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 
 		JsonObject logsEmbedFieldAttacker = new JsonObject();
 		logsEmbedFieldAttacker.addProperty( "name", "Attacker" );
-		logsEmbedFieldAttacker.addProperty( "value", ( damageSource.getAttacker() != null ? Utilities.escapeDiscordMarkdown( damageSource.getAttacker().getName().asString() ) : "N/A" ) );
+		logsEmbedFieldAttacker.addProperty( "value", ( damageSource.getAttacker() != null ? Utilities.escapeDiscordMarkdown( damageSource.getAttacker().getName().getString() ) : "N/A" ) );
 		logsEmbedFieldAttacker.addProperty( "inline", true );
 
 		JsonObject logsEmbedFieldReason = new JsonObject();

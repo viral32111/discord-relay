@@ -26,11 +26,6 @@ dependencies {
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-
-	// Uncomment the following line to enable the deprecated Fabric API modules.
-	// These are included in the Fabric API production distribution and allow you to update your mod to the latest modules at a later more convenient time.
-
-	modImplementation "net.fabricmc.fabric-api:fabric-api-deprecated:${project.fabric_version}"
 }
 
 processResources {
@@ -73,5 +68,18 @@ publishing {
 		// Notice: This block does NOT have the same function as the block in the top level.
 		// The repositories here will be used for publishing your artifact, not for
 		// retrieving dependencies.
+	}
+}
+
+// Custom task to copy mod .jar into local development server
+task copyJarToServer {
+	dependsOn( "build" )
+
+	doLast {
+		copy {
+			from "build/libs/DiscordRelay-0.5.1.jar"
+			into "../../Documents/Fabric Dev Server/mods"
+		}
+
 	}
 }

@@ -68,7 +68,7 @@ public class Gateway implements WebSocket.Listener {
 
 	@Override
 	public CompletionStage<?> onText( WebSocket webSocket, CharSequence messageFragment, boolean isLastMessage ) {
-		//DiscordRelay.logger.info( "onText() -> '{}' | {}", messageFragment, isLastMessage );
+		DiscordRelay.logger.info( "onText() -> '{}' | {}", messageFragment, isLastMessage );
 
 		receivedTextSequences.add( messageFragment );
 
@@ -142,6 +142,7 @@ public class Gateway implements WebSocket.Listener {
 
 						if ( type.equals( "READY" ) ) {
 							DiscordRelay.logger.info( "Connected as '{}#{}' ({})", data.get( "user" ).getAsJsonObject().get( "username" ).getAsString(), data.get( "user" ).getAsJsonObject().get( "discriminator" ).getAsInt(), data.get( "user" ).getAsJsonObject().get( "id" ).getAsString() );
+
 						} else if ( type.equals( "MESSAGE_CREATE" ) ) {
 							String channelID = data.get( "channel_id" ).getAsString();
 
@@ -150,7 +151,8 @@ public class Gateway implements WebSocket.Listener {
 								String authorName = author.get( "username" ).getAsString();
 
 								JsonObject member = data.get( "member" ).getAsJsonObject();
-								if ( member.get( "nick" ) != null ) authorName = member.get( "nick" ).getAsString();
+
+								if ( member.has( "nick" ) && !member.get( "nick" ).isJsonNull() ) authorName = member.get( "nick" ).getAsString();
 
 								String content = data.get( "content" ).getAsString();
 								if ( !content.equals( "" ) ) {
