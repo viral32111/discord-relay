@@ -29,6 +29,9 @@ jobs:
         java-version: 17
         distribution: temurin
 
+    - name: Make Gradle Executable
+      run: chmod +x gradlew
+
     - name: Build Mod
       uses: gradle/gradle-build-action@v2
       with:
