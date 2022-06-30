@@ -4,6 +4,29 @@ This is a Minecraft mod for [Fabric](https://fabricmc.net/) that relays in-game 
 
 This was previously a plugin for [Paper](https://papermc.io/), however development of that concluded but is still available on the [paper branch](https://github.com/viral32111/DiscordRelay/tree/paper).
 
+## Configuration
+
+The configuration file is located at `config/discordrelay.json`.
+
+The default is as follows.
+
+```json
+{
+	"relay-webhook": "https://discord.com/api/webhooks/ID/TOKEN",
+	"logs-webhook": "https://discord.com/api/webhooks/ID/TOKEN",
+	"logs-date-format": "dd/MM/yyyy HH:mm:ss z",
+	"category-id": "12345678987654321",
+	"category-format": "Minecraft (%s)",
+	"http-user-agent": "Minecraft Server (https://example.com; contact@example.com)",
+	"http-from": "contact@example.com",
+	"bot-token": "APPLICATION-TOKEN",
+	"skin-avatar-url": "https://crafatar.com/avatars/%s.png?size=128&overlay",
+	"profile-url": "https://namemc.com/profile/%s",
+	"server-address": "127.0.0.1:25565",
+	"relay-channel-id": "12345678987654321"
+}
+```
+
 ## License
 
 Copyright (C) 2021-2022 [viral32111](https://viral32111.com).
