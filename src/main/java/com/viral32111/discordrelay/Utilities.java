@@ -3,40 +3,43 @@ package com.viral32111.discordrelay;
 import com.google.gson.JsonObject;
 import net.minecraft.server.network.ServerPlayerEntity;
 
+import javax.annotation.Nullable;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 public class Utilities {
-	public static CompletableFuture<HttpResponse<String>> sendHttpRequest( String method, URI destination, String body, HashMap<String, String> headers ) {
+
+	public static CompletableFuture<HttpResponse<String>> HttpRequest( String method, String url, Map<String, String> headers, @Nullable String body ) {
 		HttpRequest.Builder builder = HttpRequest.newBuilder();
 
 		// Set URL
-		builder.uri( destination );
+		builder.uri( URI.create( url ) );
 
 		// Set method and any body
-		builder.method( method, ( body.equals( "" ) ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString( body ) ) );
+		builder.method( method, ( body != null ? HttpRequest.BodyPublishers.ofString( body ) : HttpRequest.BodyPublishers.noBody() ) );
 
 		// Set additional headers
 		headers.forEach( builder::header );
 
 		// Set permanent headers
-		builder.header( "User-Agent", Config.httpUserAgent );
-		builder.header( "From", Config.httpFrom );
+		builder.header( "User-Agent", Objects.requireNonNull( Config.Get( "http.user-agent" ) ) );
+		builder.header( "From", Objects.requireNonNull( Config.Get( "http.from" ) ) );
 
 		// Send request and return asynchronous task
-		return DiscordRelay.httpClient.sendAsync( builder.build(), HttpResponse.BodyHandlers.ofString() );
+		return DiscordRelay.HTTP_CLIENT.sendAsync( builder.build(), HttpResponse.BodyHandlers.ofString() );
 	}
 
-	public static CompletableFuture<HttpResponse<String>> sendToWebhook( URI destination, JsonObject payload ) {
-		return sendHttpRequest( "POST", destination, payload.toString(), new HashMap<>() {{
-			put( "Content-Type", "application/json" );
-		}} );
+	public static CompletableFuture<HttpResponse<String>> sendToWebhook( String destination, JsonObject payload ) {
+		return HttpRequest( "POST", destination, Map.of(
+			"Content-Type", "application/json"
+		), payload.toString() );
 	}
 
 	public static String currentDateTime( String format ) {

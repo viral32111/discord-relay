@@ -7,10 +7,13 @@ import java.net.http.WebSocket;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
 public class Gateway implements WebSocket.Listener {
+
+
 	private WebSocket myself;
 	private final List<CharSequence> receivedTextSequences = new ArrayList<>();
 	private int heartbeatInterval = 40000; // It's usually around about this
@@ -104,15 +107,15 @@ public class Gateway implements WebSocket.Listener {
 						DiscordRelay.logger.info( "We should identify now..." );
 
 						JsonObject identifyDataProperties = new JsonObject();
-						identifyDataProperties.addProperty( "$os", Config.httpUserAgent );
-						identifyDataProperties.addProperty( "$browser", Config.httpUserAgent );
-						identifyDataProperties.addProperty( "$device", Config.httpUserAgent );
+						identifyDataProperties.addProperty( "$os", Objects.requireNonNull( Config.Get( "http.user-agent" ) ) );
+						identifyDataProperties.addProperty( "$browser", Objects.requireNonNull( Config.Get( "http.user-agent" ) ) );
+						identifyDataProperties.addProperty( "$device", Objects.requireNonNull( Config.Get( "http.user-agent" ) ) );
 
 						JsonObject identifyDataPresence = new JsonObject();
 						identifyDataPresence.addProperty( "status", "offline" );
 
 						JsonObject identifyData = new JsonObject();
-						identifyData.addProperty( "token", Config.botToken );
+						identifyData.addProperty( "token", Objects.requireNonNull( Config.Get( "discord.token" ) ) );
 						identifyData.addProperty( "intents", ( 1 << 9 ) ); // Server Messages
 						identifyData.add( "properties", identifyDataProperties );
 
@@ -146,7 +149,7 @@ public class Gateway implements WebSocket.Listener {
 						} else if ( type.equals( "MESSAGE_CREATE" ) ) {
 							String channelID = data.get( "channel_id" ).getAsString();
 
-							if ( channelID.equals( Config.relayChannelID ) && data.get( "webhook_id" ) == null ) {
+							if ( channelID.equals( Objects.requireNonNull( Config.Get( "discord.channel.relay" ) ) ) && data.get( "webhook_id" ) == null ) {
 								JsonObject author = data.get( "author" ).getAsJsonObject();
 								String authorName = author.get( "username" ).getAsString();
 
