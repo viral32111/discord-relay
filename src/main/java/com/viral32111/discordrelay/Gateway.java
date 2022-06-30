@@ -68,7 +68,7 @@ public class Gateway implements WebSocket.Listener {
 
 	@Override
 	public CompletionStage<?> onText( WebSocket webSocket, CharSequence messageFragment, boolean isLastMessage ) {
-		DiscordRelay.logger.info( "onText() -> '{}' | {}", messageFragment, isLastMessage );
+		//DiscordRelay.logger.info( "onText() -> '{}' | {}", messageFragment, isLastMessage );
 
 		receivedTextSequences.add( messageFragment );
 
