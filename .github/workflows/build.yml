@@ -1,0 +1,41 @@
+name: Build
+
+on:
+  push:
+    branches: [ fabric ]
+    paths:
+    - 'gradle/**'
+    - 'src/**'
+    - 'build.gradle'
+    - 'settings.gradle'
+    - 'gradle.properties'
+  pull_request:
+    branches: [ fabric ]
+
+jobs:
+  build:
+    name: Ubuntu
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+    - name: Clone Repository
+      uses: actions/checkout@v3
+
+    - name: Setup Java
+      uses: actions/setup-java@v3
+      with:
+        java-version: 17
+        distribution: temurin
+
+    - name: Build Mod
+      uses: gradle/gradle-build-action@v2
+      with:
+        arguments: jar
+
+    - name: Upload Mod
+      uses: actions/upload-artifact@v3
+      with:
+        name: DiscordRelay
+        path: build/libs/DiscordRelay-*.jar
