@@ -14,7 +14,7 @@ import java.util.concurrent.CompletionStage;
 public class Gateway implements WebSocket.Listener {
 
 
-	private WebSocket myself;
+	/*private WebSocket myself;
 	private final List<CharSequence> receivedTextSequences = new ArrayList<>();
 	private int heartbeatInterval = 40000; // It's usually around about this
 	private int latestSequenceNumber = 0;
@@ -95,7 +95,7 @@ public class Gateway implements WebSocket.Listener {
 					DiscordRelay.logger.warn( "sequence number is null?" );
 				}*/
 
-				if ( operationCode == 10 ) {
+				/*if ( operationCode == 10 ) {
 					DiscordRelay.logger.info( "Received hello!" );
 
 					if ( !payload.get( "d" ).isJsonNull() ) {
@@ -220,5 +220,5 @@ public class Gateway implements WebSocket.Listener {
 		DiscordRelay.logger.error( "onError() -> {} {} {}", error.toString(), error.getMessage(), error.getStackTrace() );
 
 		WebSocket.Listener.super.onError( webSocket, error );
-	}
+	}*/
 }

@@ -6,6 +6,7 @@ import javax.annotation.Nullable;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -18,8 +19,13 @@ public class Utilities {
 	// Perform a HTTP request to a specified URL with a custom method, headers, and an optional body
 	public static CompletableFuture<HttpResponse<String>> HttpRequest( String method, String url, Map<String, String> headers, @Nullable String body ) {
 
+		DiscordRelay.LOGGER.debug( "'{}' to '{}' with {} bytes", method, url, ( body != null ? body.length() : 0 ) );
+
 		// Create a new request builder
 		HttpRequest.Builder builder = HttpRequest.newBuilder();
+
+		// Set connection timeout from the configuration
+		builder.timeout( Duration.ofSeconds( Config.Get( "http.timeout" ) ) );
 
 		// Set the target URL
 		builder.uri( URI.create( url ) );

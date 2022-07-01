@@ -23,7 +23,7 @@ public class Config {
 	private static final String CONFIGURATION_FILE_NAME = "DiscordRelay.json";
 
 	// Create a Gson instance with pretty-printing for writing the example configuration file
-	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
 	// Holds all key-value pairs from the configuration file
 	// NOTE: Dots (.) are used in the key for accessing nested keys
@@ -53,7 +53,7 @@ public class Config {
 
 			// Save the configuration in case new keys were added
 			try ( FileWriter writer = new FileWriter( configurationFile ) ) {
-				writer.write( GSON.toJson( CONFIGURATION_VALUES ) );
+				writer.write( GSON.toJson( existingConfiguration ) );
 			}
 
 		}
@@ -68,7 +68,7 @@ public class Config {
 
 			// If the value is a string, add it to the configuration
 			if ( entry.getValue().isJsonPrimitive() ) {
-				DiscordRelay.LOGGER.debug( String.format( "Configuration key '%s' is '%s'", parentKey.concat( entry.getKey() ), entry.getValue().getAsString() ) );
+				//DiscordRelay.LOGGER.info( "Configuration key '{}' is '{}'", parentKey.concat( entry.getKey() ), entry.getValue().getAsString() );
 				CONFIGURATION_VALUES.put( parentKey.concat( entry.getKey() ), entry.getValue().getAsString() );
 
 			// Otherwise, recall with the value as the next node, and the path to get to it
@@ -97,6 +97,10 @@ public class Config {
 
 	}
 
+	public static Integer Get( String path ) {
+		return Integer.parseInt( Get( path, null ) );
+	}
+
 	// Creates a new example configuration, or adds missing keys to an existing configuration
 	// NOTE: An alternative way to do this would be with a version identifier in the configuration file
 	private static JsonObject PopulateWithExample( @Nullable JsonObject rootConfiguration ) {
@@ -111,28 +115,40 @@ public class Config {
 		// Get the existing Discord configuration, or create an empty one, then add any missing properties
 		JsonObject discordConfiguration = ( rootConfiguration.has( "discord" ) ? rootConfiguration.getAsJsonObject( "discord" ) : new JsonObject() );
 		if ( !discordConfiguration.has( "token" ) ) discordConfiguration.addProperty( "token", "APPLICATION-TOKEN" );
-		if ( !discordConfiguration.has( "api" ) ) discordConfiguration.addProperty( "api", "discord.com/api/v10" ); // https://discord.com/developers/docs/reference#api-reference-base-url
+
+		// Get the existing API configuration from the Discord configuration, or create an empty one, then add any missing properties
+		// https://discord.com/developers/docs/reference#api-reference-base-url
+		JsonObject discordApiConfiguration = ( discordConfiguration.has( "api" ) ? discordConfiguration.getAsJsonObject( "api" ) : new JsonObject() );
+		if ( !discordApiConfiguration.has( "url" ) ) discordApiConfiguration.addProperty( "url", "discord.com/api" );
+		if ( !discordApiConfiguration.has( "version" ) ) discordApiConfiguration.addProperty( "version", "10" );
 
 		// Get the existing channel configuration from the Discord configuration, or create an empty one, then add any missing properties
-		JsonObject discordChannelConfiguration = ( discordConfiguration.has( "channel" ) ? rootConfiguration.getAsJsonObject( "channel" ) : new JsonObject() );
-		if ( !rootConfiguration.has( "relay" ) ) discordChannelConfiguration.addProperty( "relay", "12345678987654321" );
+		JsonObject discordChannelConfiguration = ( discordConfiguration.has( "channel" ) ? discordConfiguration.getAsJsonObject( "channel" ) : new JsonObject() );
+		if ( !discordChannelConfiguration.has( "relay" ) ) discordChannelConfiguration.addProperty( "relay", "12345678987654321" );
 
 		// Get the existing category configuration from the Discord configuration, or create an empty one, then add any missing properties
-		JsonObject discordCategoryConfiguration = ( discordConfiguration.has( "category" ) ? rootConfiguration.getAsJsonObject( "category" ) : new JsonObject() );
+		JsonObject discordCategoryConfiguration = ( discordConfiguration.has( "category" ) ? discordConfiguration.getAsJsonObject( "category" ) : new JsonObject() );
 		if ( !discordCategoryConfiguration.has( "id" ) ) discordCategoryConfiguration.addProperty( "id", "12345678987654321" );
 		if ( !discordCategoryConfiguration.has( "name" ) ) discordCategoryConfiguration.addProperty( "name", "Minecraft ({status})" );
 
 		// Get the existing wehook configuration from the Discord configuration, or create an empty one, then add any missing properties
-		JsonObject discordWebhookConfiguration = ( discordConfiguration.has( "webhook" ) ? rootConfiguration.getAsJsonObject( "webhook" ) : new JsonObject() );
+		JsonObject discordWebhookConfiguration = ( discordConfiguration.has( "webhook" ) ? discordConfiguration.getAsJsonObject( "webhook" ) : new JsonObject() );
 		if ( !discordWebhookConfiguration.has( "relay" ) ) discordWebhookConfiguration.addProperty( "relay", "ID/TOKEN" );
 		if ( !discordWebhookConfiguration.has( "log" ) ) discordWebhookConfiguration.addProperty( "log", "ID/TOKEN" );
 
-		// Get the existing HTTP configuration, or create an empty one, then add any missing propertie
+		// Always add all of the child configurations to the root because properties inside of sub-child configurations may have changed
+		discordConfiguration.add( "api", discordApiConfiguration );
+		discordConfiguration.add( "channel", discordChannelConfiguration );
+		discordConfiguration.add( "category", discordCategoryConfiguration );
+		discordConfiguration.add( "webhook", discordWebhookConfiguration );
+
+		// Get the existing HTTP configuration, or create an empty one, then add any missing properties
 		JsonObject httpConfiguration = ( rootConfiguration.has( "http" ) ? rootConfiguration.getAsJsonObject( "http" ) : new JsonObject() );
 		if ( !httpConfiguration.has( "user-agent" ) ) httpConfiguration.addProperty( "user-agent", "Minecraft Server (https://example.com; contact@example.com)" );
 		if ( !httpConfiguration.has( "from" ) ) httpConfiguration.addProperty( "from", "contact@example.com" );
+		if ( !httpConfiguration.has( "timeout" ) ) httpConfiguration.addProperty( "timeout", "10" ); // Seconds
 
-		// Get the existing external/third-party configuration, or create an empty one, then add any missing propertie
+		// Get the existing external/third-party configuration, or create an empty one, then add any missing properties
 		JsonObject externalConfiguration = ( rootConfiguration.has( "external" ) ? rootConfiguration.getAsJsonObject( "external" ) : new JsonObject() );
 		if ( !externalConfiguration.has( "profile" ) ) externalConfiguration.addProperty( "profile", "https://namemc.com/profile/{uuid}" );
 		if ( !externalConfiguration.has( "face" ) ) externalConfiguration.addProperty( "face", "https://crafatar.com/avatars/{uuid}.png?size=128&overlay" );

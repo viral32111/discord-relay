@@ -6,7 +6,7 @@ This was previously a plugin for [Paper](https://papermc.io/), however developme
 
 ## Configuration
 
-The configuration file is located at `config/DiscordRelay.json`.
+The configuration file is located at `config/DiscordRelay.json` in your server's directory.
 
 The default is as follows.
 
@@ -14,21 +14,26 @@ The default is as follows.
 {
 	"discord": {
 		"token": "APPLICATION-TOKEN",
+        "api": {
+            "url": "discord.com/api",
+            "version": "10"
+        },
 		"channel": {
 			"relay": "12345678987654321"
 		},
 		"category": {
 			"id": "12345678987654321",
-			"format": "Minecraft (%s)",
+			"name": "Minecraft (%s)"
 		},
 		"webhook": {
-			"relay": "https://discord.com/api/webhooks/ID/TOKEN",
-			"log": "https://discord.com/api/webhooks/ID/TOKEN"
+			"relay": "ID/TOKEN",
+			"log": "ID/TOKEN"
 		}
 	},
 	"http": {
 		"user-agent": "Minecraft Server (https://example.com; contact@example.com)",
-		"from": "contact@example.com"
+		"from": "contact@example.com",
+        "timeout": "10"
 	},
 	"external": {
 		"profile": "https://namemc.com/profile/%s",

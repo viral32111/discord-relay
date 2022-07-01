@@ -3,6 +3,7 @@ package com.viral32111.discordrelay;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.viral32111.discordrelay.discord.API;
+import com.viral32111.discordrelay.discord.Gateway;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.entity.Entity;
@@ -21,6 +22,7 @@ import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
+import java.net.http.WebSocket;
 import java.util.Map;
 import java.util.Objects;
 
@@ -31,12 +33,11 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 	// TODO: Move this to the Utilities class
 	public static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
 
-	// Get an instance of the LOGGER fto use across the entire mod
-	public static final Logger LOGGER = LogManager.getLogger();
+	// Get an instance of the logger to use across the entire mod
+	public static final Logger LOGGER = LogManager.getLogger( "discordrelay" );
 
-
-	private final JsonObject allowedMentions = new JsonObject();
-	private static MinecraftServer minecraftServer; // TODO: Find a better solution
+	//private final JsonObject allowedMentions = new JsonObject();
+	//private static MinecraftServer minecraftServer; // TODO: Find a better solution
 
 	// TODO: Implement proper rate-limiting & make this queued
 	/*private void updateCategoryStatus( String status ) {
@@ -54,32 +55,35 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		return minecraftServer.getCommandManager().execute( minecraftServer.getCommandSource(), command );
 	}*/
 
-	public static void broadcastDiscordMessage( String author, String content ) {
+	/*public static void broadcastDiscordMessage( String author, String content ) {
 		Text a = Text.literal( "(Discord) " ).setStyle( Style.EMPTY.withColor( TextColor.parse( "blue" ) ) );
 		Text b = Text.literal( author ).setStyle( Style.EMPTY.withColor( TextColor.parse( "green" ) ) );
 		Text c = Text.literal( String.format( ": %s", content ) ).setStyle( Style.EMPTY.withColor( TextColor.parse( "white" ) ) );
 		Text message = Text.literal( "" ).append( a ).append( b ).append( c );
-		LOGGER.info( message.getString() );
+		LOGGER.debug( message.getString() );
 
 		minecraftServer.getPlayerManager().broadcast( message, MessageType.SYSTEM );
 		//minecraftServer.getPlayerManager().broadcast( Text.of( String.format( "%s: %s", author, content ) ), MessageType.SYSTEM, Util.NIL_UUID );
-	}
+	}*/
 
 	@Override
 	public void onInitializeServer() {
-
-		// Send message to console
-		LOGGER.info( "I've initialised on the server!" );
+		LOGGER.debug( "Initialised on the server!" );
 
 		// Prevent all Discord mentions
-		allowedMentions.add( "parse", new JsonArray() );
+		//allowedMentions.add( "parse", new JsonArray() );
 
-		// Load (or create) the configuration file
+		// Load the configuration file
 		try {
 			Config.Load();
 		} catch ( IOException exception ) {
-			LOGGER.error( "Failed to load configuration file! ({})", exception.getMessage() );
+			LOGGER.error( "Failed to load the configuration file! ({})", exception.getMessage() );
 		}
+
+		Gateway.Start();
+
+
+
 
 		// Register custom events
 		/*PlayerConnect.EVENT.register( this::onPlayerConnect );

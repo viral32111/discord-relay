@@ -10,10 +10,7 @@
 
 	],
 	"server": [
-		"PlayerAdvancementTrackerMixin",
-		"PlayerManagerMixin",
-		"ServerPlayNetworkHandlerMixin",
-		"ServerPlayerEntityMixin"
+		
 	],
 	"injectors": {
 		"defaultRequire": 1
