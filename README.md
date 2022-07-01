@@ -14,10 +14,10 @@ The default is as follows.
 {
 	"discord": {
 		"token": "APPLICATION-TOKEN",
-        "api": {
-            "url": "discord.com/api",
-            "version": "10"
-        },
+		"api": {
+			"url": "discord.com/api",
+			"version": "10"
+		},
 		"channel": {
 			"relay": "12345678987654321"
 		},
@@ -33,7 +33,7 @@ The default is as follows.
 	"http": {
 		"user-agent": "Minecraft Server (https://example.com; contact@example.com)",
 		"from": "contact@example.com",
-        "timeout": "10"
+		"timeout": "10"
 	},
 	"external": {
 		"profile": "https://namemc.com/profile/%s",
