@@ -1,9 +1,12 @@
 package com.viral32111.discordrelay;
 
+import com.google.gson.JsonObject;
+import com.viral32111.discordrelay.discord.API;
 import net.minecraft.server.network.ServerPlayerEntity;
 
 import javax.annotation.Nullable;
 import java.net.URI;
+import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
@@ -15,6 +18,9 @@ import java.util.concurrent.CompletableFuture;
 
 // Methods & helpers used across the entire mod
 public class Utilities {
+
+	// Create a HTTP client to use across the entire mod
+	public static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
 
 	// Perform a HTTP request to a specified URL with a custom method, headers, and an optional body
 	public static CompletableFuture<HttpResponse<String>> HttpRequest( String method, String url, Map<String, String> headers, @Nullable String body ) {
@@ -41,23 +47,48 @@ public class Utilities {
 		builder.header( "From", Config.Get( "http.from", null ) );
 
 		// Send the request and return the asynchronous task
-		return DiscordRelay.HTTP_CLIENT.sendAsync( builder.build(), HttpResponse.BodyHandlers.ofString() );
+		return Utilities.HTTP_CLIENT.sendAsync( builder.build(), HttpResponse.BodyHandlers.ofString() );
 
 	}
 
-	/*public static String currentDateTime( String format ) {
-		return DateTimeFormatter.ofPattern( format ).format( ZonedDateTime.now( ZoneId.of( "UTC" ) ) );
-	}
+	// Returns a player's name & nickname if they have a nickname, otherwise just the name
+	public static String GetPlayerName( ServerPlayerEntity player ) {
 
-	public static String getPlayerName( ServerPlayerEntity player ) {
-		if ( player.getName().getString().equals( player.getDisplayName().getString() ) ) {
-			return player.getName().getString();
+		// Store the player's username and nickname
+		String userName = player.getName().getContent().toString();
+		String displayName = player.getDisplayName().getContent().toString();
+
+		// If the username and nickname are the same, just return the name
+		if ( displayName.equals( userName ) ) {
+			return userName;
+
+		// If they are different, return both
 		} else {
-			return String.format( "%s (%s)", player.getDisplayName().getString(), player.getName().getString() );
+			return String.format( "%s (%s)", displayName, userName );
 		}
+
 	}
 
-	public static String capitalise( String original ) {
+	public static String CurrentDateTime() {
+		return DateTimeFormatter.ofPattern( Config.Get( "log-date-format", null ) ).format( ZonedDateTime.now( ZoneId.of( "UTC" ) ) );
+	}
+
+	// Helper to update the server status in the category name
+	// TODO: Implement rate-limiting & queue
+	public static void UpdateCategoryStatus( String status ) {
+
+		// Create the payload to send
+		JsonObject payload = new JsonObject();
+		payload.addProperty( "name", Config.Get( "discord.category.name", Map.of( "status", status ) ) );
+
+		// Send the request
+		API.Request( "PATCH", String.format( "channels/%s", Config.Get( "discord.category.id", null ) ), payload );
+
+	}
+
+
+
+	/*public static String capitalise( String original ) {
 		return original.substring( 0, 1 ).toUpperCase().concat( original.substring( 1 ) );
 	}
 

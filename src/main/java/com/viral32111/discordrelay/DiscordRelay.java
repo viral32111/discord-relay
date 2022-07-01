@@ -1,55 +1,20 @@
 package com.viral32111.discordrelay;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import com.viral32111.discordrelay.discord.API;
 import com.viral32111.discordrelay.discord.Gateway;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.network.ClientConnection;
-import net.minecraft.network.message.MessageType;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextColor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.net.http.HttpClient;
-import java.net.http.HttpResponse;
-import java.net.http.WebSocket;
-import java.util.Map;
-import java.util.Objects;
 
 // The main entry point class, only runs on a server environment
 public class DiscordRelay implements DedicatedServerModInitializer {
 
-	// Create a HTTP client to use across the entire mod
-	// TODO: Move this to the Utilities class
-	public static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
-
 	// Get an instance of the logger to use across the entire mod
+	// NOTE: The name used here is the same as the Mod Identifier in the Fabric configuration file
 	public static final Logger LOGGER = LogManager.getLogger( "discordrelay" );
-
-	//private final JsonObject allowedMentions = new JsonObject();
-	//private static MinecraftServer minecraftServer; // TODO: Find a better solution
-
-	// TODO: Implement proper rate-limiting & make this queued
-	/*private void updateCategoryStatus( String status ) {
-		String categoryIdentifier = Config.Get( "discord.category.id", null );
-
-		JsonObject payload = new JsonObject();
-		payload.addProperty( "name", Config.Get( "discord.category.name", Map.of( "status", status ) ) );
-
-		API.Request( "PATCH", String.format( "channels/%s", categoryIdentifier ), payload ).thenAccept( ( JsonObject response ) -> {
-			LOGGER.info( String.format( "Updated Discord category (%s) name with status: '%s'.", categoryIdentifier, status ) );
-		} );
-	}*/
 
 	/*public static int executeServerCommand( String command ) {
 		return minecraftServer.getCommandManager().execute( minecraftServer.getCommandSource(), command );
@@ -68,10 +33,9 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 
 	@Override
 	public void onInitializeServer() {
-		LOGGER.debug( "Initialised on the server!" );
 
-		// Prevent all Discord mentions
-		//allowedMentions.add( "parse", new JsonArray() );
+		// Display a message in the console
+		LOGGER.info( "Initialised on the server!" );
 
 		// Load the configuration file
 		try {
@@ -80,49 +44,19 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 			LOGGER.error( "Failed to load the configuration file! ({})", exception.getMessage() );
 		}
 
+		// Start the Discord gateway client to listen for Discord -> Minecraft messages
 		Gateway.Start();
 
-
-
-
-		// Register custom events
-		/*PlayerConnect.EVENT.register( this::onPlayerConnect );
-		PlayerDisconnect.EVENT.register( this::onPlayerDisconnect );
-		PlayerChat.EVENT.register( this::onPlayerChat );
-		PlayerAdvancement.EVENT.register( this::onPlayerAdvancement );
-		PlayerDeath.EVENT.register( this::onPlayerDeath );
-		CommandExecute.EVENT.register( this::onCommandExecute );
-
-		// Register Fabric API events
+		// Register events from the Fabric API
 		ServerLifecycleEvents.SERVER_STARTED.register( this::onServerStarted );
-		ServerLifecycleEvents.SERVER_STOPPING.register( this::onServerStopping );*/
+		ServerLifecycleEvents.SERVER_STOPPING.register( this::onServerStopping );
 
-		// Asynchronously start the gateway bot
-		/*CompletableFuture.runAsync( () -> {
-			try {
-				HttpResponse<String> response = Utilities.sendHttpRequest( "GET", URI.create( "https://discord.com/api/v9/gateway/bot" ), "", new HashMap<>() {{
-					put( "Authorization", String.format( "Bot %s", Config.botToken ) );
-				}} ).get();
-
-				if ( response.statusCode() >= 400 ) throw new Exception( String.format( "Failed to fetch bot gateway! (%d: %s)", response.statusCode(), response.body() ) );
-
-				JsonObject gatewayDetails = JsonParser.parseString( response.body() ).getAsJsonObject();
-				URI gatewayUri = URI.create( gatewayDetails.get( "url" ).getAsString().concat( "/?encoding=json&v=9" ) );
-
-				WebSocket.Builder builder = httpClient.newWebSocketBuilder();
-				builder.header( "User-Agent", Config.httpUserAgent );
-				builder.header( "From", Config.httpFrom );
-				builder.buildAsync( gatewayUri, new Gateway() ).get();
-			} catch ( Exception exception ) {
-				LOGGER.error( "Failed to start gateway bot! ({})", exception.getMessage() );
-			}
-		} );*/
 	}
 
 	// Events
-	/*private void onServerStarted( MinecraftServer server ) {
+	private void onServerStarted( MinecraftServer server ) {
 		// Send message to console
-		LOGGER.info( "Relaying server started message..." );
+		/*LOGGER.info( "Relaying server started message..." );
 
 		// Update global server property
 		minecraftServer = server;
@@ -176,12 +110,12 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		} );
 
 		// Update the category
-		updateCategoryStatus( "Empty" );
-	}/*
+		updateCategoryStatus( "Empty" );*/
+	}
 
-	/*private void onServerStopping( MinecraftServer server ) {
+	private void onServerStopping( MinecraftServer server ) {
 		// Send message to console
-		LOGGER.info( "Relaying server stopped message..." );
+		/*LOGGER.info( "Relaying server stopped message..." );
 
 		// Send message to relay
 		JsonObject relayEmbedAuthor = new JsonObject();
@@ -223,8 +157,8 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		} );
 
 		// Update the category
-		updateCategoryStatus( "Offline" );
-	}*/
+		updateCategoryStatus( "Offline" );*/
+	}
 
 	/*private void onPlayerConnect( ServerPlayerEntity player, ClientConnection connection ) {
 		// Send message to the console

@@ -1,5 +1,6 @@
 package com.viral32111.discordrelay.discord;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.viral32111.discordrelay.Config;
@@ -49,8 +50,32 @@ public class API {
 	}
 
 	// Helper to send a message to a webhook
-	public static CompletableFuture<JsonObject> ExecuteWebhook( String identifierAndToken, JsonObject payload ) {
-		return Request( "POST", String.format( "webhook/%s", identifierAndToken ), payload );
+	public static CompletableFuture<JsonObject> ExecuteWebhook( String identifierAndToken, JsonObject payload, boolean isEmbed ) {
+
+		// Is the provided JSON object just an embed?
+		if ( isEmbed ) {
+
+			// Do not allow any mentions
+			JsonObject allowedMentions = new JsonObject();
+			allowedMentions.add( "parse", new JsonArray() );
+
+			// Array of the provided embed
+			JsonArray embeds = new JsonArray();
+			embeds.add( payload );
+
+			// Payload to send with the embeds arrays and mentions object
+			JsonObject wrapper = new JsonObject();
+			wrapper.add( "embeds", embeds );
+			wrapper.add( "allowed_mentions", allowedMentions );
+
+			// Execute the webhook with the wrapped embed payload
+			return Request( "POST", String.format( "webhook/%s", identifierAndToken ), wrapper );
+
+		// Otherwise it must be an entire payload, so just send it as is
+		} else {
+			return Request( "POST", String.format( "webhook/%s", identifierAndToken ), payload );
+		}
+
 	}
 
 }

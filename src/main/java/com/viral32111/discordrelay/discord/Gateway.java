@@ -4,9 +4,9 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.viral32111.discordrelay.Config;
 import com.viral32111.discordrelay.DiscordRelay;
+import com.viral32111.discordrelay.Utilities;
 import com.viral32111.discordrelay.discord.types.OperationCode;
 
-import javax.annotation.Nullable;
 import java.net.URI;
 import java.net.http.WebSocket;
 import java.time.Duration;
@@ -50,7 +50,7 @@ public class Gateway implements WebSocket.Listener {
 		connectionClosedFuture = new CompletableFuture<>();
 
 		// Asynchronously connect to the gateway, using the provided URL and options from the configuration
-		DiscordRelay.HTTP_CLIENT.newWebSocketBuilder()
+		Utilities.HTTP_CLIENT.newWebSocketBuilder()
 
 			// Additional headers in the upgrade request
 			.header( "User-Agent", Config.Get( "http.user-agent", null ) )
