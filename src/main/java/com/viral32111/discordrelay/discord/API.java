@@ -8,16 +8,10 @@ import com.viral32111.discordrelay.Utilities;
 import javax.annotation.Nullable;
 import java.net.http.HttpResponse;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 // Encapsulates everything for making requests to the Discord API
 public class API {
-
-	// The base URL (including version number) of the API
-	// https://discord.com/developers/docs/reference#api-reference-base-url
-	// TODO: Move this to the configuration file
-	private static final String DISCORD_API_URL = "https://discord.com/api/v10";
 
 	// Makes an asynchronous request to the API
 	public static CompletableFuture<JsonObject> Request( String method, String endpoint, @Nullable JsonObject data ) {
@@ -30,11 +24,11 @@ public class API {
 		Map<String, String> requestHeaders = Map.of(
 			"Accept", "application/json, */*",
 			"Content-Type", "application/json",
-			"Authorization", String.format( "Bot %s", Objects.requireNonNull( Config.Get( "discord.token" ) ) )
+			"Authorization", String.format( "Bot %s", Config.Get( "discord.token", null ) )
 		);
 
 		// Send a HTTP request to the provided API endpoint, with an optional JSON payload
-		Utilities.HttpRequest( method, String.format( "%s/%s", DISCORD_API_URL, endpoint ), requestHeaders, ( data != null ? data.toString() : null ) ).thenAccept( ( HttpResponse<String> response ) -> {
+		Utilities.HttpRequest( method, String.format( "https://%s/%s", Config.Get( "discord.url", null ), endpoint ), requestHeaders, ( data != null ? data.toString() : null ) ).thenAccept( ( HttpResponse<String> response ) -> {
 
 			// Error if the request was unsuccessful
 			if ( response.statusCode() < 200 || response.statusCode() > 299 ) {
@@ -58,6 +52,11 @@ public class API {
 		// Return the future created at the start
 		return future;
 
+	}
+
+	// Helper to send a message to a webhook
+	public static CompletableFuture<JsonObject> ExecuteWebhook( String identifierAndToken, JsonObject payload ) {
+		return Request( "POST", String.format( "webhook/%s", identifierAndToken ), payload );
 	}
 
 }

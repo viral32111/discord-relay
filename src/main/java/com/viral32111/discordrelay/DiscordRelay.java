@@ -2,6 +2,7 @@ package com.viral32111.discordrelay;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.viral32111.discordrelay.discord.API;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.entity.Entity;
@@ -20,34 +21,34 @@ import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
+import java.util.Map;
 import java.util.Objects;
 
+// The main entry point class, only runs on a server environment
 public class DiscordRelay implements DedicatedServerModInitializer {
 
+	// Create a HTTP client to use across the entire mod
+	// TODO: Move this to the Utilities class
 	public static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
 
+	// Get an instance of the LOGGER fto use across the entire mod
+	public static final Logger LOGGER = LogManager.getLogger();
 
-	public static final Logger logger = LogManager.getLogger();
+
 	private final JsonObject allowedMentions = new JsonObject();
 	private static MinecraftServer minecraftServer; // TODO: Find a better solution
 
 	// TODO: Implement proper rate-limiting & make this queued
-	private void updateCategoryStatus( String status ) {
-		JsonObject payload = new JsonObject();
-		payload.addProperty( "name", String.format( Objects.requireNonNull( Config.Get( "discord.category.format" ) ), status ) );
+	/*private void updateCategoryStatus( String status ) {
+		String categoryIdentifier = Config.Get( "discord.category.id", null );
 
-		/*Utilities.sendHttpRequest( "PATCH", URI.create( "https://discord.com/api/v9/channels/".concat( Config.categoryID ) ), payload.toString(), new HashMap<>() {{
-			put( "Content-Type", "application/json" );
-			put( "Authorization", String.format( "Bot %s", Config.botToken ) );
-		}}  ).thenAccept( ( HttpResponse<String> response ) -> {
-			if  ( response.statusCode() == 429 ) {
-				JsonObject error = JsonParser.parseString( response.body() ).getAsJsonObject();
-				logger.error( "Hit rate-limit when updating category status! (retry in {} seconds)", error.get( "retry_after" ).getAsDouble() );
-			} else if ( response.statusCode() >= 400 ) {
-				logger.error( "Got bad response when updating category status! ({}: {})", response.statusCode(), response.body() );
-			}
-		} );*/
-	}
+		JsonObject payload = new JsonObject();
+		payload.addProperty( "name", Config.Get( "discord.category.name", Map.of( "status", status ) ) );
+
+		API.Request( "PATCH", String.format( "channels/%s", categoryIdentifier ), payload ).thenAccept( ( JsonObject response ) -> {
+			LOGGER.info( String.format( "Updated Discord category (%s) name with status: '%s'.", categoryIdentifier, status ) );
+		} );
+	}*/
 
 	/*public static int executeServerCommand( String command ) {
 		return minecraftServer.getCommandManager().execute( minecraftServer.getCommandSource(), command );
@@ -58,7 +59,7 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		Text b = Text.literal( author ).setStyle( Style.EMPTY.withColor( TextColor.parse( "green" ) ) );
 		Text c = Text.literal( String.format( ": %s", content ) ).setStyle( Style.EMPTY.withColor( TextColor.parse( "white" ) ) );
 		Text message = Text.literal( "" ).append( a ).append( b ).append( c );
-		logger.info( message.getString() );
+		LOGGER.info( message.getString() );
 
 		minecraftServer.getPlayerManager().broadcast( message, MessageType.SYSTEM );
 		//minecraftServer.getPlayerManager().broadcast( Text.of( String.format( "%s: %s", author, content ) ), MessageType.SYSTEM, Util.NIL_UUID );
@@ -68,7 +69,7 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 	public void onInitializeServer() {
 
 		// Send message to console
-		logger.info( "I've initialised on the server!" );
+		LOGGER.info( "I've initialised on the server!" );
 
 		// Prevent all Discord mentions
 		allowedMentions.add( "parse", new JsonArray() );
@@ -77,11 +78,11 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		try {
 			Config.Load();
 		} catch ( IOException exception ) {
-			logger.error( "Failed to load configuration file! ({})", exception.getMessage() );
+			LOGGER.error( "Failed to load configuration file! ({})", exception.getMessage() );
 		}
 
 		// Register custom events
-		PlayerConnect.EVENT.register( this::onPlayerConnect );
+		/*PlayerConnect.EVENT.register( this::onPlayerConnect );
 		PlayerDisconnect.EVENT.register( this::onPlayerDisconnect );
 		PlayerChat.EVENT.register( this::onPlayerChat );
 		PlayerAdvancement.EVENT.register( this::onPlayerAdvancement );
@@ -90,7 +91,7 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 
 		// Register Fabric API events
 		ServerLifecycleEvents.SERVER_STARTED.register( this::onServerStarted );
-		ServerLifecycleEvents.SERVER_STOPPING.register( this::onServerStopping );
+		ServerLifecycleEvents.SERVER_STOPPING.register( this::onServerStopping );*/
 
 		// Asynchronously start the gateway bot
 		/*CompletableFuture.runAsync( () -> {
@@ -109,15 +110,15 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 				builder.header( "From", Config.httpFrom );
 				builder.buildAsync( gatewayUri, new Gateway() ).get();
 			} catch ( Exception exception ) {
-				logger.error( "Failed to start gateway bot! ({})", exception.getMessage() );
+				LOGGER.error( "Failed to start gateway bot! ({})", exception.getMessage() );
 			}
 		} );*/
 	}
 
 	// Events
-	private void onServerStarted( MinecraftServer server ) {
+	/*private void onServerStarted( MinecraftServer server ) {
 		// Send message to console
-		logger.info( "Relaying server started message..." );
+		LOGGER.info( "Relaying server started message..." );
 
 		// Update global server property
 		minecraftServer = server;
@@ -137,8 +138,8 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		relayPayload.add( "embeds", relayEmbeds );
 		relayPayload.add( "allowed_mentions", allowedMentions );
 
-		Utilities.sendToWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) logger.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
+		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
+			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
 		} );
 
 		// Send message to logs
@@ -166,17 +167,17 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		logsPayload.add( "embeds", logsEmbeds );
 		logsPayload.add( "allowed_mentions", allowedMentions );
 
-		Utilities.sendToWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) logger.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
+		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
+			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
 		} );
 
 		// Update the category
 		updateCategoryStatus( "Empty" );
-	}
+	}/*
 
-	private void onServerStopping( MinecraftServer server ) {
+	/*private void onServerStopping( MinecraftServer server ) {
 		// Send message to console
-		logger.info( "Relaying server stopped message..." );
+		LOGGER.info( "Relaying server stopped message..." );
 
 		// Send message to relay
 		JsonObject relayEmbedAuthor = new JsonObject();
@@ -193,8 +194,8 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		relayPayload.add( "embeds", relayEmbeds );
 		relayPayload.add( "allowed_mentions", allowedMentions );
 
-		Utilities.sendToWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) logger.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
+		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
+			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
 		} );
 
 		// Send message to logs
@@ -213,17 +214,17 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		logsPayload.add( "embeds", logsEmbeds );
 		logsPayload.add( "allowed_mentions", allowedMentions );
 
-		Utilities.sendToWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) logger.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
+		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
+			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
 		} );
 
 		// Update the category
 		updateCategoryStatus( "Offline" );
-	}
+	}*/
 
-	private void onPlayerConnect( ServerPlayerEntity player, ClientConnection connection ) {
+	/*private void onPlayerConnect( ServerPlayerEntity player, ClientConnection connection ) {
 		// Send message to the console
-		logger.info( "Relaying player '{}' join message...", player.getName().getString() );
+		LOGGER.info( "Relaying player '{}' join message...", player.getName().getString() );
 
 		// Send message to relay
 		JsonObject relayAuthor = new JsonObject();
@@ -242,8 +243,8 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		relayPayload.add( "embeds", relayEmbeds );
 		relayPayload.add( "allowed_mentions", allowedMentions );
 
-		Utilities.sendToWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) logger.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
+		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
+			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
 		} );
 
 		// Send message to logs
@@ -283,21 +284,21 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		logsPayload.add( "embeds", logsEmbeds );
 		logsPayload.add( "allowed_mentions", allowedMentions );
 
-		Utilities.sendToWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) logger.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
+		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
+			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
 		} );
 
 		// Update the category
 		updateCategoryStatus( minecraftServer.getCurrentPlayerCount() + " Playing" );
-	}
+	}*/
 
-	private void onPlayerDisconnect( ServerPlayerEntity player ) {
+	/*private void onPlayerDisconnect( ServerPlayerEntity player ) {
 		if ( player.getServer() == null ) return;
 		if ( player.getServer().isStopping() ) return;
 		if ( player.getServer().isStopped() ) return;
 
 		// Send message to console
-		logger.info( "Relaying player '{}' leave message...", player.getName().getString() );
+		LOGGER.info( "Relaying player '{}' leave message...", player.getName().getString() );
 
 		// Send message to relay
 		JsonObject relayEmbedAuthor = new JsonObject();
@@ -316,8 +317,8 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		relayPayload.add( "embeds", relayEmbeds );
 		relayPayload.add( "allowed_mentions", allowedMentions );
 
-		Utilities.sendToWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) logger.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
+		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
+			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
 		} );
 
 		// Send message to logs
@@ -349,18 +350,18 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		logsPayload.add( "embeds", logsEmbeds );
 		logsPayload.add( "allowed_mentions", allowedMentions );
 
-		Utilities.sendToWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) logger.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
+		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
+			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
 		} );
 
 		// Update the category
 		int playerCount = minecraftServer.getCurrentPlayerCount();
 		updateCategoryStatus( ( playerCount > 0 ? String.format( "%d Playing", playerCount ) : "Empty" ) );
-	}
+	}*/
 
-	private void onPlayerChat( ServerPlayerEntity player, String message ) {
+	/*private void onPlayerChat( ServerPlayerEntity player, String message ) {
 		// Send message to console
-		logger.info( "Relaying player '{}' chat message '{}'...", player.getName().getString(), message );
+		LOGGER.info( "Relaying player '{}' chat message '{}'...", player.getName().getString(), message );
 
 		// Send message to relay
 		JsonObject relayPayload = new JsonObject();
@@ -369,14 +370,14 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		relayPayload.addProperty( "content", Utilities.escapeDiscordMarkdown( message ) );
 		relayPayload.add( "allowed_mentions", allowedMentions );
 
-		Utilities.sendToWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) logger.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
+		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
+			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
 		} );
 	}
 
 	private void onPlayerAdvancement( ServerPlayerEntity player, String name, String criterion, String type ) {
 		// Send message to console
-		logger.info( "Relaying player '{}' leave message...", player.getName().getString() );
+		LOGGER.info( "Relaying player '{}' leave message...", player.getName().getString() );
 
 		// Send message to relay
 		JsonObject relayEmbedAuthor = new JsonObject();
@@ -400,8 +401,8 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		relayPayload.add( "embeds", relayEmbeds );
 		relayPayload.add( "allowed_mentions", allowedMentions );
 
-		Utilities.sendToWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) logger.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
+		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
+			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
 		} );
 
 		// Send message to logs
@@ -451,14 +452,14 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		logsPayload.add( "embeds", logsEmbeds );
 		logsPayload.add( "allowed_mentions", allowedMentions );
 
-		Utilities.sendToWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) logger.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
+		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
+			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
 		} );
-	}
+	}*/
 
-	private void onPlayerDeath( ServerPlayerEntity player, DamageSource damageSource ) {
+	/*private void onPlayerDeath( ServerPlayerEntity player, DamageSource damageSource ) {
 		// Send message to console
-		logger.info( "Relaying player '{}' death message...", player.getName().getString() );
+		LOGGER.info( "Relaying player '{}' death message...", player.getName().getString() );
 
 		// Send message to relay
 		JsonObject relayEmbedAuthor = new JsonObject();
@@ -478,8 +479,8 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		relayPayload.add( "embeds", relayEmbeds );
 		relayPayload.add( "allowed_mentions", allowedMentions );
 
-		Utilities.sendToWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) logger.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
+		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
+			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
 		} );
 
 		// Send message to logs
@@ -523,12 +524,12 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		logsPayload.add( "embeds", logsEmbeds );
 		logsPayload.add( "allowed_mentions", allowedMentions );
 
-		Utilities.sendToWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) logger.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
+		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
+			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
 		} );
-	}
+	}*/
 
-	private void onCommandExecute( String command, @Nullable Entity executor ) {
+	/*private void onCommandExecute( String command, @Nullable Entity executor ) {
 		if ( executor != null && executor.isPlayer() ) {
 			ServerPlayerEntity player = ( ServerPlayerEntity ) executor;
 
@@ -567,9 +568,9 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 			logsPayload.add( "embeds", logsEmbeds );
 			logsPayload.add( "allowed_mentions", allowedMentions );
 
-			Utilities.sendToWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-				if ( response.statusCode() >= 400 ) logger.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
+			API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
+				if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
 			} );
 		}
-	}
+	}*/
 }

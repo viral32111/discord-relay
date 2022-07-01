@@ -1,6 +1,5 @@
 package com.viral32111.discordrelay;
 
-import com.google.gson.JsonObject;
 import net.minecraft.server.network.ServerPlayerEntity;
 
 import javax.annotation.Nullable;
@@ -11,38 +10,36 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
+// Methods & helpers used across the entire mod
 public class Utilities {
 
+	// Perform a HTTP request to a specified URL with a custom method, headers, and an optional body
 	public static CompletableFuture<HttpResponse<String>> HttpRequest( String method, String url, Map<String, String> headers, @Nullable String body ) {
+
+		// Create a new request builder
 		HttpRequest.Builder builder = HttpRequest.newBuilder();
 
-		// Set URL
+		// Set the target URL
 		builder.uri( URI.create( url ) );
 
-		// Set method and any body
+		// Set the method, and body if provided
 		builder.method( method, ( body != null ? HttpRequest.BodyPublishers.ofString( body ) : HttpRequest.BodyPublishers.noBody() ) );
 
-		// Set additional headers
+		// Add any headers provided
 		headers.forEach( builder::header );
 
-		// Set permanent headers
-		builder.header( "User-Agent", Objects.requireNonNull( Config.Get( "http.user-agent" ) ) );
-		builder.header( "From", Objects.requireNonNull( Config.Get( "http.from" ) ) );
+		// Add the permanent headers
+		builder.header( "User-Agent", Config.Get( "http.user-agent", null ) );
+		builder.header( "From", Config.Get( "http.from", null ) );
 
-		// Send request and return asynchronous task
+		// Send the request and return the asynchronous task
 		return DiscordRelay.HTTP_CLIENT.sendAsync( builder.build(), HttpResponse.BodyHandlers.ofString() );
+
 	}
 
-	public static CompletableFuture<HttpResponse<String>> sendToWebhook( String destination, JsonObject payload ) {
-		return HttpRequest( "POST", destination, Map.of(
-			"Content-Type", "application/json"
-		), payload.toString() );
-	}
-
-	public static String currentDateTime( String format ) {
+	/*public static String currentDateTime( String format ) {
 		return DateTimeFormatter.ofPattern( format ).format( ZonedDateTime.now( ZoneId.of( "UTC" ) ) );
 	}
 
@@ -73,5 +70,5 @@ public class Utilities {
 		original = original.replace( "\n", " " );
 
 		return original;
-	}
+	}*/
 }
