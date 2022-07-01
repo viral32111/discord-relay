@@ -80,7 +80,7 @@ public class Config {
 
 	}
 
-	// Gets a value from the configuration, and applies optional placeholder replacement
+	// Gets a string value from the configuration, and applies optional placeholder replacement
 	// NOTE: Dots (.) can be used in the path for accessing nested keys
 	public static String Get( String path, @Nullable Map<String, String> placeholderValues ) {
 
@@ -97,6 +97,7 @@ public class Config {
 
 	}
 
+	// Gets an integer value from the configuration
 	public static Integer Get( String path ) {
 		return Integer.parseInt( Get( path, null ) );
 	}
