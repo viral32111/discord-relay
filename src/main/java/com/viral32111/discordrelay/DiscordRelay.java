@@ -1,13 +1,18 @@
 package com.viral32111.discordrelay;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.viral32111.discordrelay.discord.API;
 import com.viral32111.discordrelay.discord.Gateway;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.server.MinecraftServer;
 
 import java.io.IOException;
+import java.util.Objects;
 
 // The main entry point class, only runs on a server environment
+@SuppressWarnings( "unused" ) // This is used, the IDE just doesn't know it
 public class DiscordRelay implements DedicatedServerModInitializer {
 
 	@Override
@@ -37,13 +42,10 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 	// Runs when the server finishes loading
 	private void onServerStarted( MinecraftServer server ) {
 
-		// Send message to console
-		/*Utilities.Log( "Relaying server started message..." );
+		// Display message in the console
+		Utilities.Log( "Relaying server open message." );
 
-		// Update global server property
-		minecraftServer = server;
-
-		// Send message to relay
+		// Create an embed for the relay message
 		JsonObject relayEmbedAuthor = new JsonObject();
 		relayEmbedAuthor.addProperty( "name", "The server is now open!" );
 
@@ -51,58 +53,40 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		relayEmbed.addProperty( "color", 0x00FF00 );
 		relayEmbed.add( "author", relayEmbedAuthor );
 
-		JsonArray relayEmbeds = new JsonArray();
-		relayEmbeds.add( relayEmbed );
+		// Create an embed for the log message
+		JsonObject logEmbedFieldAddress = new JsonObject();
+		logEmbedFieldAddress.addProperty( "name", "Address" );
+		logEmbedFieldAddress.addProperty( "value", String.format( "`%s`", Objects.requireNonNull( Config.Get( "public-server-address" ) ) ) );
+		logEmbedFieldAddress.addProperty( "inline", true );
 
-		JsonObject relayPayload = new JsonObject();
-		relayPayload.add( "embeds", relayEmbeds );
-		relayPayload.add( "allowed_mentions", allowedMentions );
-
-		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) Utilities.LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
-		} );
-
-		// Send message to logs
-		JsonObject logsEmbedFieldAddress = new JsonObject();
-		logsEmbedFieldAddress.addProperty( "name", "Address" );
-		logsEmbedFieldAddress.addProperty( "value", String.format( "`%s`", Objects.requireNonNull( Config.Get( "public-server-address" ) ) ) );
-		logsEmbedFieldAddress.addProperty( "inline", true );
-
-		JsonArray logsEmbedFields = new JsonArray();
-		logsEmbedFields.add( logsEmbedFieldAddress );
+		JsonArray logEmbedFields = new JsonArray();
+		logEmbedFields.add( logEmbedFieldAddress );
 
 		JsonObject logsEmbedFooter = new JsonObject();
-		logsEmbedFooter.addProperty( "text", Utilities.currentDateTime( Objects.requireNonNull( Config.Get( "log-date-format" ) ) ) );
+		logsEmbedFooter.addProperty( "text", Utilities.CurrentDateTime() );
 
-		JsonObject logsEmbed = new JsonObject();
-		logsEmbed.addProperty( "title", "Server Started" );
-		logsEmbed.addProperty( "color", 0xFFB200 );
-		logsEmbed.add( "fields", logsEmbedFields );
-		logsEmbed.add( "footer", logsEmbedFooter );
+		JsonObject logEmbed = new JsonObject();
+		logEmbed.addProperty( "title", "Server Started" );
+		logEmbed.addProperty( "color", 0xFFB200 );
+		logEmbed.add( "fields", logEmbedFields );
+		logEmbed.add( "footer", logsEmbedFooter );
 
-		JsonArray logsEmbeds = new JsonArray();
-		logsEmbeds.add( logsEmbed );
+		// Send the relay & log messages as embeds
+		API.ExecuteWebhook( Config.Get( "discord.webhook.relay", null ), relayEmbed, true );
+		API.ExecuteWebhook( Config.Get( "discord.webhook.log", null ), logEmbed, true );
 
-		JsonObject logsPayload = new JsonObject();
-		logsPayload.add( "embeds", logsEmbeds );
-		logsPayload.add( "allowed_mentions", allowedMentions );
-
-		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) Utilities.LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
-		} );
-
-		// Update the category
-		updateCategoryStatus( "Empty" );*/
+		// Update the name of the category to indicate the server is now open with no players online
+		Utilities.UpdateCategoryStatus( "Empty" );
 
 	}
 
 	// Runs when the server is about to close
 	private void onServerStopping( MinecraftServer server ) {
 
-		// Send message to console
-		/*Utilities.Log( "Relaying server stopped message..." );
+		// Display message in the console
+		Utilities.Log( "Relaying server closing message." );
 
-		// Send message to relay
+		// Create an embed for the relay message
 		JsonObject relayEmbedAuthor = new JsonObject();
 		relayEmbedAuthor.addProperty( "name", "The server has closed." );
 
@@ -110,39 +94,30 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		relayEmbed.addProperty( "color", 0xFF0000 );
 		relayEmbed.add( "author", relayEmbedAuthor );
 
-		JsonArray relayEmbeds = new JsonArray();
-		relayEmbeds.add( relayEmbed );
+		// Create an embed for the log message
+		JsonObject logEmbedFieldAddress = new JsonObject();
+		logEmbedFieldAddress.addProperty( "name", "Address" );
+		logEmbedFieldAddress.addProperty( "value", String.format( "`%s`", Objects.requireNonNull( Config.Get( "public-server-address" ) ) ) );
+		logEmbedFieldAddress.addProperty( "inline", true );
 
-		JsonObject relayPayload = new JsonObject();
-		relayPayload.add( "embeds", relayEmbeds );
-		relayPayload.add( "allowed_mentions", allowedMentions );
+		JsonArray logEmbedFields = new JsonArray();
+		logEmbedFields.add( logEmbedFieldAddress );
 
-		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) Utilities.LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
-		} );
-
-		// Send message to logs
 		JsonObject logsEmbedFooter = new JsonObject();
-		logsEmbedFooter.addProperty( "text", Utilities.currentDateTime( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ) ) );
+		logsEmbedFooter.addProperty( "text", Utilities.CurrentDateTime() );
 
-		JsonObject logsEmbed = new JsonObject();
-		logsEmbed.addProperty( "title", "Server Stopped" );
-		logsEmbed.addProperty( "color", 0xFFB200 );
-		logsEmbed.add( "footer", logsEmbedFooter );
+		JsonObject logEmbed = new JsonObject();
+		logEmbed.addProperty( "title", "Server Stopped" );
+		logEmbed.addProperty( "color", 0xFFB200 );
+		logEmbed.add( "fields", logEmbedFields );
+		logEmbed.add( "footer", logsEmbedFooter );
 
-		JsonArray logsEmbeds = new JsonArray();
-		logsEmbeds.add( logsEmbed );
+		// Send the relay & log messages as embeds
+		API.ExecuteWebhook( Config.Get( "discord.webhook.relay", null ), relayEmbed, true );
+		API.ExecuteWebhook( Config.Get( "discord.webhook.log", null ), logEmbed, true );
 
-		JsonObject logsPayload = new JsonObject();
-		logsPayload.add( "embeds", logsEmbeds );
-		logsPayload.add( "allowed_mentions", allowedMentions );
-
-		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) Utilities.LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
-		} );
-
-		// Update the category
-		updateCategoryStatus( "Offline" );*/
+		// Update the name of the category to indicate the server is closed
+		Utilities.UpdateCategoryStatus( "Offline" );
 
 	}
 
