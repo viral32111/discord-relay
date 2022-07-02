@@ -1,11 +1,13 @@
 package com.viral32111.discordrelay.discord;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.viral32111.discordrelay.Config;
 import com.viral32111.discordrelay.Utilities;
 import com.viral32111.discordrelay.discord.types.OperationCode;
 
+import javax.annotation.Nullable;
 import java.net.URI;
 import java.net.http.WebSocket;
 import java.time.Duration;
@@ -23,8 +25,11 @@ public class Gateway implements WebSocket.Listener {
 	// Holds a list of  received message fragments for forming the final message
 	private final ArrayList<CharSequence> messageFragments = new ArrayList<>();
 
-	// Holds the current payload sequence number
+	// The current payload sequence number
 	private Integer sequenceNumber = null;
+
+	// The future for the periodic heartbeats
+	private CompletableFuture<?> heartbeatFuture = null;
 
 	// Starts the initial connection to the gateway
 	public static void Start() {
@@ -66,9 +71,59 @@ public class Gateway implements WebSocket.Listener {
 
 	}
 
+	// Check if the websocket is currently open
+	private boolean IsConnected( WebSocket webSocket ) {
+		return !( webSocket.isInputClosed() || webSocket.isOutputClosed() );
+	}
+
+	private void Send( WebSocket webSocket, int operationCode, @Nullable Object data ) {
+
+		JsonObject payload = new JsonObject();
+		payload.addProperty( "op", operationCode );
+		payload.add( "d", ( JsonElement ) data );
+
+		webSocket.sendText( payload.toString(), true );
+
+	}
+
+	private void SendHeartbeat( WebSocket webSocket ) {
+
+		this.Send( webSocket, OperationCode.Heartbeat, this.sequenceNumber );
+
+		// TODO: Check for acknowledgement
+
+	}
+
+	private void StartHeartbeating( WebSocket webSocket, int interval ) {
+
+		boolean sentInitialBeat = false;
+
+		while ( IsConnected( webSocket ) && !heartbeatFuture.isCancelled() ) {
+
+			try {
+				if ( !sentInitialBeat ) {
+					Thread.sleep( Math.round( interval * Math.random() ) );
+
+				} else {
+					Thread.sleep( Math.round( interval ) );
+				}
+
+			} catch ( InterruptedException e ) {
+				e.printStackTrace();
+			}
+
+			if ( !IsConnected( webSocket ) || heartbeatFuture.isCancelled() ) break;
+
+			this.SendHeartbeat( webSocket );
+
+		}
+
+	}
+
 	// Runs when the websocket connection opens
 	@Override
 	public void onOpen( WebSocket webSocket ) {
+
 		Utilities.Log( "Gateway connection opened." );
 
 		// Run default action
@@ -79,11 +134,17 @@ public class Gateway implements WebSocket.Listener {
 	// Runs when the websocket connection closes
 	@Override
 	public CompletionStage<?> onClose( WebSocket webSocket, int code, String reason ) {
+
 		Utilities.Log( "Gateway connection closed: {} ({}).", code, reason );
 
+		// Stop heartbeating
+		this.heartbeatFuture.cancel( true );
+		this.heartbeatFuture.join();
+
 		// Cleanup for the next run
-		messageFragments.clear();
-		sequenceNumber = null;
+		this.messageFragments.clear();
+		this.sequenceNumber = null;
+		this.heartbeatFuture = null;
 
 		// Complete the future to indicate the connection is now closed
 		connectionClosedFuture.complete( null );
@@ -123,7 +184,7 @@ public class Gateway implements WebSocket.Listener {
 			if ( operationCode == OperationCode.Hello && ( payload.has( "d" ) && !payload.get( "d" ).isJsonNull() ) ) {
 				int interval = payload.getAsJsonObject( "d" ).get( "heartbeat_interval" ).getAsInt();
 
-				// TODO: Start heartbeating
+				this.heartbeatFuture = CompletableFuture.runAsync( () -> this.StartHeartbeating( webSocket, interval ) );
 			}
 
 		}
@@ -136,6 +197,7 @@ public class Gateway implements WebSocket.Listener {
 	// Runs when an error occurs on the websocket
 	@Override
 	public void onError( WebSocket webSocket, Throwable error ) {
+
 		Utilities.LOGGER.error( error.getMessage() );
 
 		// Run default action
@@ -143,62 +205,7 @@ public class Gateway implements WebSocket.Listener {
 
 	}
 
-	/*private WebSocket myself;
-	private final List<CharSequence> receivedTextSequences = new ArrayList<>();
-	private int heartbeatInterval = 40000; // It's usually around about this
-	private int latestSequenceNumber = 0;
-	private CompletableFuture<Void> heartbeater;
-
-	private boolean isConnected() {
-		return !( myself.isInputClosed() || myself.isInputClosed() );
-	}
-
-	private void startHeartbeating() {
-		DiscordRelay.logger.info( "Started heartbeating..." );
-
-		boolean isFirst = true;
-
-		while ( isConnected() && !heartbeater.isCancelled() ) {
-			if ( isFirst ) {
-				isFirst = false;
-
-				double jitter = Math.random();
-
-				try {
-					Thread.sleep( Math.round( heartbeatInterval * jitter ) );
-				} catch ( InterruptedException e ) {
-					e.printStackTrace();
-				}
-			} else {
-				try {
-					Thread.sleep( Math.round( heartbeatInterval ) );
-				} catch ( InterruptedException e ) {
-					e.printStackTrace();
-				}
-			}
-
-			if ( !isConnected() || heartbeater.isCancelled() ) break;
-
-			DiscordRelay.logger.info( "Sending heartbeat with sequence number {}...", latestSequenceNumber );
-			JsonObject payload = new JsonObject();
-			payload.addProperty( "op", 1 );
-			payload.addProperty( "d", latestSequenceNumber );
-			myself.sendText( payload.toString(), true );
-		}
-
-		DiscordRelay.logger.info( "Finished heartbeating." );
-	}
-
-	@Override
-	public void onOpen( WebSocket webSocket ) {
-		DiscordRelay.logger.info( "onOpen()" );
-
-		myself = webSocket;
-
-		WebSocket.Listener.super.onOpen( webSocket );
-	}
-
-	@Override
+	/*
 	public CompletionStage<?> onText( WebSocket webSocket, CharSequence messageFragment, boolean isLastMessage ) {
 		//DiscordRelay.logger.info( "onText() -> '{}' | {}", messageFragment, isLastMessage );
 
@@ -312,43 +319,6 @@ public class Gateway implements WebSocket.Listener {
 		}
 
 		return WebSocket.Listener.super.onText( webSocket, messageFragment, isLastMessage );
-	}
-
-	@Override
-	public CompletionStage<?> onBinary( WebSocket webSocket, ByteBuffer data, boolean last ) {
-		DiscordRelay.logger.info( "onBinary() -> '{}' | {}", data.toString(), last );
-
-		return WebSocket.Listener.super.onBinary( webSocket, data, last );
-	}
-
-	@Override
-	public CompletionStage<?> onPing( WebSocket webSocket, ByteBuffer message ) {
-		DiscordRelay.logger.info( "onPing() -> '{}'", message.toString() );
-
-		return WebSocket.Listener.super.onPing( webSocket, message );
-	}
-
-	@Override
-	public CompletionStage<?> onPong( WebSocket webSocket, ByteBuffer message ) {
-		DiscordRelay.logger.info( "onPong() -> '{}'", message.toString() );
-
-		return WebSocket.Listener.super.onPong( webSocket, message );
-	}
-
-	@Override
-	public CompletionStage<?> onClose( WebSocket webSocket, int statusCode, String reason ) {
-		DiscordRelay.logger.info( "onClose() -> '{}' | {}", reason, statusCode );
-
-		heartbeater.cancel( true );
-
-		return WebSocket.Listener.super.onClose( webSocket, statusCode, reason );
-	}
-
-	@Override
-	public void onError( WebSocket webSocket, Throwable error ) {
-		DiscordRelay.logger.error( "onError() -> {} {} {}", error.toString(), error.getMessage(), error.getStackTrace() );
-
-		WebSocket.Listener.super.onError( webSocket, error );
 	}*/
 
 }
