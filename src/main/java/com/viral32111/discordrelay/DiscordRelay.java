@@ -4,59 +4,41 @@ import com.viral32111.discordrelay.discord.Gateway;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.server.MinecraftServer;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 
 // The main entry point class, only runs on a server environment
 public class DiscordRelay implements DedicatedServerModInitializer {
 
-	// Get an instance of the logger to use across the entire mod
-	// NOTE: The name used here is the same as the Mod Identifier in the Fabric configuration file
-	public static final Logger LOGGER = LogManager.getLogger( "discordrelay" );
-
-	/*public static int executeServerCommand( String command ) {
-		return minecraftServer.getCommandManager().execute( minecraftServer.getCommandSource(), command );
-	}*/
-
-	/*public static void broadcastDiscordMessage( String author, String content ) {
-		Text a = Text.literal( "(Discord) " ).setStyle( Style.EMPTY.withColor( TextColor.parse( "blue" ) ) );
-		Text b = Text.literal( author ).setStyle( Style.EMPTY.withColor( TextColor.parse( "green" ) ) );
-		Text c = Text.literal( String.format( ": %s", content ) ).setStyle( Style.EMPTY.withColor( TextColor.parse( "white" ) ) );
-		Text message = Text.literal( "" ).append( a ).append( b ).append( c );
-		LOGGER.debug( message.getString() );
-
-		minecraftServer.getPlayerManager().broadcast( message, MessageType.SYSTEM );
-		//minecraftServer.getPlayerManager().broadcast( Text.of( String.format( "%s: %s", author, content ) ), MessageType.SYSTEM, Util.NIL_UUID );
-	}*/
-
 	@Override
 	public void onInitializeServer() {
 
-		// Display a message in the console
-		LOGGER.info( "Initialised on the server!" );
+		// Display message in the console
+		Utilities.Log( "Discord Relay has initialized." );
 
 		// Load the configuration file
 		try {
 			Config.Load();
 		} catch ( IOException exception ) {
-			LOGGER.error( "Failed to load the configuration file! ({})", exception.getMessage() );
+			Utilities.LOGGER.error( "Failed to load the configuration file! ({})", exception.getMessage() );
+			return; // Do not continue
 		}
 
 		// Start the Discord gateway client to listen for Discord -> Minecraft messages
 		Gateway.Start();
 
 		// Register events from the Fabric API
+		// https://maven.fabricmc.net/docs/fabric-api-0.57.1+1.19.1/net/fabricmc/fabric/api/event/lifecycle/v1/ServerLifecycleEvents.html
 		ServerLifecycleEvents.SERVER_STARTED.register( this::onServerStarted );
 		ServerLifecycleEvents.SERVER_STOPPING.register( this::onServerStopping );
 
 	}
 
-	// Events
+	// Runs when the server finishes loading
 	private void onServerStarted( MinecraftServer server ) {
+
 		// Send message to console
-		/*LOGGER.info( "Relaying server started message..." );
+		/*Utilities.Log( "Relaying server started message..." );
 
 		// Update global server property
 		minecraftServer = server;
@@ -77,7 +59,7 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		relayPayload.add( "allowed_mentions", allowedMentions );
 
 		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
+			if ( response.statusCode() >= 400 ) Utilities.LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
 		} );
 
 		// Send message to logs
@@ -106,16 +88,19 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		logsPayload.add( "allowed_mentions", allowedMentions );
 
 		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
+			if ( response.statusCode() >= 400 ) Utilities.LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
 		} );
 
 		// Update the category
 		updateCategoryStatus( "Empty" );*/
+
 	}
 
+	// Runs when the server is about to close
 	private void onServerStopping( MinecraftServer server ) {
+
 		// Send message to console
-		/*LOGGER.info( "Relaying server stopped message..." );
+		/*Utilities.Log( "Relaying server stopped message..." );
 
 		// Send message to relay
 		JsonObject relayEmbedAuthor = new JsonObject();
@@ -133,7 +118,7 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		relayPayload.add( "allowed_mentions", allowedMentions );
 
 		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
+			if ( response.statusCode() >= 400 ) Utilities.LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
 		} );
 
 		// Send message to logs
@@ -153,362 +138,12 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		logsPayload.add( "allowed_mentions", allowedMentions );
 
 		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
+			if ( response.statusCode() >= 400 ) Utilities.LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
 		} );
 
 		// Update the category
 		updateCategoryStatus( "Offline" );*/
+
 	}
 
-	/*private void onPlayerConnect( ServerPlayerEntity player, ClientConnection connection ) {
-		// Send message to the console
-		LOGGER.info( "Relaying player '{}' join message...", player.getName().getString() );
-
-		// Send message to relay
-		JsonObject relayAuthor = new JsonObject();
-		relayAuthor.addProperty( "name", Utilities.escapeDiscordMarkdown( Utilities.getPlayerName( player ) ).concat( " joined!" ) );
-		relayAuthor.addProperty( "url", String.format( Objects.requireNonNull( Config.Get( "external.profile" ) ), player.getUuidAsString() ) );
-		relayAuthor.addProperty( "icon_url", String.format( Objects.requireNonNull( Config.Get( "external.face" ) ), player.getUuidAsString() ) );
-
-		JsonObject relayEmbed = new JsonObject();
-		relayEmbed.addProperty( "color", 0xFFFFFF );
-		relayEmbed.add( "author", relayAuthor );
-
-		JsonArray relayEmbeds = new JsonArray();
-		relayEmbeds.add( relayEmbed );
-
-		JsonObject relayPayload = new JsonObject();
-		relayPayload.add( "embeds", relayEmbeds );
-		relayPayload.add( "allowed_mentions", allowedMentions );
-
-		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
-		} );
-
-		// Send message to logs
-		JsonObject logsEmbedFieldPlayer = new JsonObject();
-		logsEmbedFieldPlayer.addProperty( "name", "Player" );
-		logsEmbedFieldPlayer.addProperty( "value", String.format( "[%s](%s)", Utilities.escapeDiscordMarkdown( Utilities.getPlayerName( player ) ), String.format( Objects.requireNonNull( Config.Get( "external.profile" ) ), player.getUuidAsString() ) ) );
-		logsEmbedFieldPlayer.addProperty( "inline", true );
-
-		JsonObject logsEmbedFieldAddress = new JsonObject();
-		logsEmbedFieldAddress.addProperty( "name", "Address" );
-		logsEmbedFieldAddress.addProperty( "value", String.format( "`%s`", connection.getAddress().toString().substring( 1 ) ) );
-		logsEmbedFieldAddress.addProperty( "inline", true );
-
-		// TODO: A field for IP lookup (Country, Is VPN/Proxy?)
-
-		JsonArray logsEmbedFields = new JsonArray();
-		logsEmbedFields.add( logsEmbedFieldPlayer );
-		logsEmbedFields.add( logsEmbedFieldAddress );
-
-		JsonObject logsEmbedThumbnail = new JsonObject();
-		logsEmbedThumbnail.addProperty( "url", String.format( Objects.requireNonNull( Config.Get( "external.profile" ) ), player.getUuidAsString() ) );
-
-		JsonObject logsEmbedFooter = new JsonObject();
-		logsEmbedFooter.addProperty( "text", Utilities.currentDateTime( Objects.requireNonNull( Config.Get( "log-date-format" ) ) ) );
-
-		JsonObject logsEmbed = new JsonObject();
-		logsEmbed.addProperty( "title", "Player Joined" );
-		logsEmbed.addProperty( "color", 0xED57EA );
-		logsEmbed.add( "thumbnail", logsEmbedThumbnail );
-		logsEmbed.add( "fields", logsEmbedFields );
-		logsEmbed.add( "footer", logsEmbedFooter );
-
-		JsonArray logsEmbeds = new JsonArray();
-		logsEmbeds.add( logsEmbed );
-
-		JsonObject logsPayload = new JsonObject();
-		logsPayload.add( "embeds", logsEmbeds );
-		logsPayload.add( "allowed_mentions", allowedMentions );
-
-		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
-		} );
-
-		// Update the category
-		updateCategoryStatus( minecraftServer.getCurrentPlayerCount() + " Playing" );
-	}*/
-
-	/*private void onPlayerDisconnect( ServerPlayerEntity player ) {
-		if ( player.getServer() == null ) return;
-		if ( player.getServer().isStopping() ) return;
-		if ( player.getServer().isStopped() ) return;
-
-		// Send message to console
-		LOGGER.info( "Relaying player '{}' leave message...", player.getName().getString() );
-
-		// Send message to relay
-		JsonObject relayEmbedAuthor = new JsonObject();
-		relayEmbedAuthor.addProperty( "name", Utilities.escapeDiscordMarkdown( Utilities.getPlayerName( player ) ).concat( " left." ) );
-		relayEmbedAuthor.addProperty( "url", String.format( Objects.requireNonNull( Config.Get( "external.profile" ) ), player.getUuidAsString() ) );
-		relayEmbedAuthor.addProperty( "icon_url", String.format( Objects.requireNonNull( Config.Get( "external.face" ) ), player.getUuidAsString() ) );
-
-		JsonObject relayEmbed = new JsonObject();
-		relayEmbed.addProperty( "color", 0xFFFFFF );
-		relayEmbed.add( "author", relayEmbedAuthor );
-
-		JsonArray relayEmbeds = new JsonArray();
-		relayEmbeds.add( relayEmbed );
-
-		JsonObject relayPayload = new JsonObject();
-		relayPayload.add( "embeds", relayEmbeds );
-		relayPayload.add( "allowed_mentions", allowedMentions );
-
-		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
-		} );
-
-		// Send message to logs
-		JsonObject logsEmbedFieldPlayer = new JsonObject();
-		logsEmbedFieldPlayer.addProperty( "name", "Player" );
-		logsEmbedFieldPlayer.addProperty( "value", String.format( "[%s](%s)", Utilities.escapeDiscordMarkdown( Utilities.getPlayerName( player ) ), String.format( Objects.requireNonNull( Config.Get( "external.profile" ) ), player.getUuidAsString() ) ) );
-		logsEmbedFieldPlayer.addProperty( "inline", true );
-
-		JsonArray logsEmbedFields = new JsonArray();
-		logsEmbedFields.add( logsEmbedFieldPlayer );
-
-		JsonObject logsEmbedThumbnail = new JsonObject();
-		logsEmbedThumbnail.addProperty( "url", String.format( Objects.requireNonNull( Config.Get( "external.face" ) ), player.getUuidAsString() ) );
-
-		JsonObject logsEmbedFooter = new JsonObject();
-		logsEmbedFooter.addProperty( "text", Utilities.currentDateTime( Objects.requireNonNull( Config.Get( "log-date-format" ) ) ) );
-
-		JsonObject logsEmbed = new JsonObject();
-		logsEmbed.addProperty( "title", "Player Left" );
-		logsEmbed.addProperty( "color", 0xED57EA );
-		logsEmbed.add( "thumbnail", logsEmbedThumbnail );
-		logsEmbed.add( "fields", logsEmbedFields );
-		logsEmbed.add( "footer", logsEmbedFooter );
-
-		JsonArray logsEmbeds = new JsonArray();
-		logsEmbeds.add( logsEmbed );
-
-		JsonObject logsPayload = new JsonObject();
-		logsPayload.add( "embeds", logsEmbeds );
-		logsPayload.add( "allowed_mentions", allowedMentions );
-
-		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
-		} );
-
-		// Update the category
-		int playerCount = minecraftServer.getCurrentPlayerCount();
-		updateCategoryStatus( ( playerCount > 0 ? String.format( "%d Playing", playerCount ) : "Empty" ) );
-	}*/
-
-	/*private void onPlayerChat( ServerPlayerEntity player, String message ) {
-		// Send message to console
-		LOGGER.info( "Relaying player '{}' chat message '{}'...", player.getName().getString(), message );
-
-		// Send message to relay
-		JsonObject relayPayload = new JsonObject();
-		relayPayload.addProperty( "avatar_url", String.format( Objects.requireNonNull( Config.Get( "external.face" ) ), player.getUuidAsString() ) );
-		relayPayload.addProperty( "username", Utilities.getPlayerName( player ) );
-		relayPayload.addProperty( "content", Utilities.escapeDiscordMarkdown( message ) );
-		relayPayload.add( "allowed_mentions", allowedMentions );
-
-		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
-		} );
-	}
-
-	private void onPlayerAdvancement( ServerPlayerEntity player, String name, String criterion, String type ) {
-		// Send message to console
-		LOGGER.info( "Relaying player '{}' leave message...", player.getName().getString() );
-
-		// Send message to relay
-		JsonObject relayEmbedAuthor = new JsonObject();
-		relayEmbedAuthor.addProperty( "url", String.format( Objects.requireNonNull( Config.Get( "external.profile" ) ), player.getUuidAsString() ) );
-		relayEmbedAuthor.addProperty( "icon_url", String.format( Objects.requireNonNull( Config.Get( "external.face" ) ), player.getUuidAsString() ) );
-
-		switch ( type ) {
-			case "challenge" -> relayEmbedAuthor.addProperty( "name", String.format( "%s completed the challenge %s!", Utilities.escapeDiscordMarkdown( Utilities.getPlayerName( player ) ), name ) );
-			case "task" -> relayEmbedAuthor.addProperty( "name", String.format( "%s has made the advancement %s!", Utilities.escapeDiscordMarkdown( Utilities.getPlayerName( player ) ), name ) );
-			case "goal" -> relayEmbedAuthor.addProperty( "name", String.format( "%s reached the goal %s!", Utilities.escapeDiscordMarkdown( Utilities.getPlayerName( player ) ), name ) );
-		}
-
-		JsonObject relayEmbed = new JsonObject();
-		relayEmbed.addProperty( "color", 0x43F0F9 );
-		relayEmbed.add( "author", relayEmbedAuthor );
-
-		JsonArray relayEmbeds = new JsonArray();
-		relayEmbeds.add( relayEmbed );
-
-		JsonObject relayPayload = new JsonObject();
-		relayPayload.add( "embeds", relayEmbeds );
-		relayPayload.add( "allowed_mentions", allowedMentions );
-
-		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
-		} );
-
-		// Send message to logs
-		JsonObject logsEmbedFieldPlayer = new JsonObject();
-		logsEmbedFieldPlayer.addProperty( "name", "Player" );
-		logsEmbedFieldPlayer.addProperty( "value", String.format( "[%s](%s)", Utilities.escapeDiscordMarkdown( Utilities.getPlayerName( player ) ), String.format( Objects.requireNonNull( Config.Get( "external.profile" ) ), player.getUuidAsString() ) ) );
-		logsEmbedFieldPlayer.addProperty( "inline", true );
-
-		JsonObject logsEmbedFieldName = new JsonObject();
-		logsEmbedFieldName.addProperty( "name", "Name" );
-		logsEmbedFieldName.addProperty( "value", name );
-		logsEmbedFieldName.addProperty( "inline", true );
-
-		JsonObject logsEmbedFieldCriterion = new JsonObject();
-		logsEmbedFieldCriterion.addProperty( "name", "Criterion" );
-		logsEmbedFieldCriterion.addProperty( "value", String.format( "`%s`", criterion ) );
-		logsEmbedFieldCriterion.addProperty( "inline", true );
-
-		JsonObject logsEmbedFieldType = new JsonObject();
-		logsEmbedFieldType.addProperty( "name", "Type" );
-		logsEmbedFieldType.addProperty( "value", Utilities.capitalise( type ) );
-		logsEmbedFieldType.addProperty( "inline", true );
-
-		JsonArray logsEmbedFields = new JsonArray();
-		logsEmbedFields.add( logsEmbedFieldPlayer );
-		logsEmbedFields.add( logsEmbedFieldName );
-		logsEmbedFields.add( logsEmbedFieldCriterion );
-		logsEmbedFields.add( logsEmbedFieldType );
-
-		JsonObject logsEmbedThumbnail = new JsonObject();
-		logsEmbedThumbnail.addProperty( "url", String.format( Objects.requireNonNull( Config.Get( "external.face" ) ), player.getUuidAsString() ) );
-
-		JsonObject logsEmbedFooter = new JsonObject();
-		logsEmbedFooter.addProperty( "text", Utilities.currentDateTime( Objects.requireNonNull( Config.Get( "log-date-format" ) ) ) );
-
-		JsonObject logsEmbed = new JsonObject();
-		logsEmbed.addProperty( "title", "Player Advancement" );
-		logsEmbed.addProperty( "color", 0xFFFFFF ); // TODO: Pick better color
-		logsEmbed.add( "thumbnail", logsEmbedThumbnail );
-		logsEmbed.add( "fields", logsEmbedFields );
-		logsEmbed.add( "footer", logsEmbedFooter );
-
-		JsonArray logsEmbeds = new JsonArray();
-		logsEmbeds.add( logsEmbed );
-
-		JsonObject logsPayload = new JsonObject();
-		logsPayload.add( "embeds", logsEmbeds );
-		logsPayload.add( "allowed_mentions", allowedMentions );
-
-		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
-		} );
-	}*/
-
-	/*private void onPlayerDeath( ServerPlayerEntity player, DamageSource damageSource ) {
-		// Send message to console
-		LOGGER.info( "Relaying player '{}' death message...", player.getName().getString() );
-
-		// Send message to relay
-		JsonObject relayEmbedAuthor = new JsonObject();
-		relayEmbedAuthor.addProperty( "name", Utilities.getPlayerName( player ).concat( " died." ) );
-		relayEmbedAuthor.addProperty( "url", String.format( Objects.requireNonNull( Config.Get( "external.profile" ) ), player.getUuidAsString() ) );
-		relayEmbedAuthor.addProperty( "icon_url", String.format( Objects.requireNonNull( Config.Get( "external.face" ) ), player.getUuidAsString() ) );
-
-		JsonObject relayEmbed = new JsonObject();
-		relayEmbed.addProperty( "description", Utilities.escapeDiscordMarkdown( damageSource.getDeathMessage( player ).getString() ).concat( "." ) );
-		relayEmbed.addProperty( "color", 0xFCBA3F );
-		relayEmbed.add( "author", relayEmbedAuthor );
-
-		JsonArray relayEmbeds = new JsonArray();
-		relayEmbeds.add( relayEmbed );
-
-		JsonObject relayPayload = new JsonObject();
-		relayPayload.add( "embeds", relayEmbeds );
-		relayPayload.add( "allowed_mentions", allowedMentions );
-
-		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
-		} );
-
-		// Send message to logs
-		JsonObject logsEmbedFieldPlayer = new JsonObject();
-		logsEmbedFieldPlayer.addProperty( "name", "Player" );
-		logsEmbedFieldPlayer.addProperty( "value", String.format( "[%s](%s)", Utilities.escapeDiscordMarkdown( Utilities.getPlayerName( player ) ), String.format( Objects.requireNonNull( Config.Get( "external.profile" ) ), player.getUuidAsString() ) ) );
-		logsEmbedFieldPlayer.addProperty( "inline", true );
-
-		JsonObject logsEmbedFieldAttacker = new JsonObject();
-		logsEmbedFieldAttacker.addProperty( "name", "Attacker" );
-		logsEmbedFieldAttacker.addProperty( "value", ( damageSource.getAttacker() != null ? Utilities.escapeDiscordMarkdown( damageSource.getAttacker().getName().getString() ) : "N/A" ) );
-		logsEmbedFieldAttacker.addProperty( "inline", true );
-
-		JsonObject logsEmbedFieldReason = new JsonObject();
-		logsEmbedFieldReason.addProperty( "name", "Reason" );
-		logsEmbedFieldReason.addProperty( "value", Utilities.escapeDiscordMarkdown( damageSource.getDeathMessage( player ).getString() ) );
-		logsEmbedFieldReason.addProperty( "inline", true );
-
-		JsonArray logsEmbedFields = new JsonArray();
-		logsEmbedFields.add( logsEmbedFieldPlayer );
-		logsEmbedFields.add( logsEmbedFieldAttacker );
-		logsEmbedFields.add( logsEmbedFieldReason );
-
-		JsonObject logsEmbedThumbnail = new JsonObject();
-		logsEmbedThumbnail.addProperty( "url", String.format( Objects.requireNonNull( Config.Get( "external.face" ) ), player.getUuidAsString() ) );
-
-		JsonObject logsEmbedFooter = new JsonObject();
-		logsEmbedFooter.addProperty( "text", Utilities.currentDateTime( Objects.requireNonNull( Config.Get( "log-date-format" ) ) ) );
-
-		JsonObject logsEmbed = new JsonObject();
-		logsEmbed.addProperty( "title", "Player Death" );
-		logsEmbed.addProperty( "color", 0xFFFFFF ); // TODO: Pick better color
-		logsEmbed.add( "thumbnail", logsEmbedThumbnail );
-		logsEmbed.add( "fields", logsEmbedFields );
-		logsEmbed.add( "footer", logsEmbedFooter );
-
-		JsonArray logsEmbeds = new JsonArray();
-		logsEmbeds.add( logsEmbed );
-
-		JsonObject logsPayload = new JsonObject();
-		logsPayload.add( "embeds", logsEmbeds );
-		logsPayload.add( "allowed_mentions", allowedMentions );
-
-		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
-		} );
-	}*/
-
-	/*private void onCommandExecute( String command, @Nullable Entity executor ) {
-		if ( executor != null && executor.isPlayer() ) {
-			ServerPlayerEntity player = ( ServerPlayerEntity ) executor;
-
-			// Send message to logs
-			JsonObject logsEmbedFieldPlayer = new JsonObject();
-			logsEmbedFieldPlayer.addProperty( "name", "Executor" );
-			logsEmbedFieldPlayer.addProperty( "value", String.format( "[%s](%s)", Utilities.escapeDiscordMarkdown( Utilities.getPlayerName( player ) ), String.format( Objects.requireNonNull( Config.Get( "external.profile" ) ), player.getUuidAsString() ) ) );
-			logsEmbedFieldPlayer.addProperty( "inline", true );
-
-			JsonObject logsEmbedFieldCommand = new JsonObject();
-			logsEmbedFieldCommand.addProperty( "name", "Command" );
-			logsEmbedFieldCommand.addProperty( "value", String.format( "`%s`", command ) );
-			logsEmbedFieldCommand.addProperty( "inline", true );
-
-			JsonArray logsEmbedFields = new JsonArray();
-			logsEmbedFields.add( logsEmbedFieldPlayer );
-			logsEmbedFields.add( logsEmbedFieldCommand );
-
-			JsonObject logsEmbedThumbnail = new JsonObject();
-			logsEmbedThumbnail.addProperty( "url", String.format( Objects.requireNonNull( Config.Get( "external.face" ) ), player.getUuidAsString() ) );
-
-			JsonObject logsEmbedFooter = new JsonObject();
-			logsEmbedFooter.addProperty( "text", Utilities.currentDateTime( Objects.requireNonNull( Config.Get( "log-date-format" ) ) ) );
-
-			JsonObject logsEmbed = new JsonObject();
-			logsEmbed.addProperty( "title", "Command Executed" );
-			logsEmbed.addProperty( "color", 0xFFFFFF ); // TODO: Pick better color
-			logsEmbed.add( "thumbnail", logsEmbedThumbnail );
-			logsEmbed.add( "fields", logsEmbedFields );
-			logsEmbed.add( "footer", logsEmbedFooter );
-
-			JsonArray logsEmbeds = new JsonArray();
-			logsEmbeds.add( logsEmbed );
-
-			JsonObject logsPayload = new JsonObject();
-			logsPayload.add( "embeds", logsEmbeds );
-			logsPayload.add( "allowed_mentions", allowedMentions );
-
-			API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.log" ) ), logsPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-				if ( response.statusCode() >= 400 ) LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
-			} );
-		}
-	}*/
 }

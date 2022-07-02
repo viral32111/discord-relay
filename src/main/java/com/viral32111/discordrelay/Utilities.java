@@ -3,6 +3,8 @@ package com.viral32111.discordrelay;
 import com.google.gson.JsonObject;
 import com.viral32111.discordrelay.discord.API;
 import net.minecraft.server.network.ServerPlayerEntity;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import javax.annotation.Nullable;
 import java.net.URI;
@@ -22,10 +24,14 @@ public class Utilities {
 	// Create a HTTP client to use across the entire mod
 	public static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
 
+	// Get an instance of the logger to use across the entire mod
+	// NOTE: The name used here is the same as the Mod Identifier in the Fabric configuration file
+	public static final Logger LOGGER = LogManager.getLogger( "discordrelay" );
+
 	// Perform a HTTP request to a specified URL with a custom method, headers, and an optional body
 	public static CompletableFuture<HttpResponse<String>> HttpRequest( String method, String url, Map<String, String> headers, @Nullable String body ) {
 
-		DiscordRelay.LOGGER.debug( "'{}' to '{}' with {} bytes", method, url, ( body != null ? body.length() : 0 ) );
+		Log( "'{}' to '{}' with {} bytes", method, url, ( body != null ? body.length() : 0 ) );
 
 		// Create a new request builder
 		HttpRequest.Builder builder = HttpRequest.newBuilder();
@@ -86,7 +92,21 @@ public class Utilities {
 
 	}
 
+	// Helper to display a message in the console with a prefix to identify the message is from this mod
+	public static void Log( String message, Object... params ) {
+		LOGGER.info( String.format( "[Discord Relay] %s", message ), params );
+	}
 
+	/*public static void broadcastDiscordMessage( String author, String content ) {
+		Text a = Text.literal( "(Discord) " ).setStyle( Style.EMPTY.withColor( TextColor.parse( "blue" ) ) );
+		Text b = Text.literal( author ).setStyle( Style.EMPTY.withColor( TextColor.parse( "green" ) ) );
+		Text c = Text.literal( String.format( ": %s", content ) ).setStyle( Style.EMPTY.withColor( TextColor.parse( "white" ) ) );
+		Text message = Text.literal( "" ).append( a ).append( b ).append( c );
+		Utilities.Log( message.getString() );
+
+		minecraftServer.getPlayerManager().broadcast( message, MessageType.SYSTEM );
+		//minecraftServer.getPlayerManager().broadcast( Text.of( String.format( "%s: %s", author, content ) ), MessageType.SYSTEM, Util.NIL_UUID );
+	}*/
 
 	/*public static String capitalise( String original ) {
 		return original.substring( 0, 1 ).toUpperCase().concat( original.substring( 1 ) );
