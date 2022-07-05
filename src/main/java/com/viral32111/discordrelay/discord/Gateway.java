@@ -22,6 +22,9 @@ public class Gateway implements WebSocket.Listener {
 	// NOTE: Completion type is any as there is no need to complete this with data
 	private static CompletableFuture<?> connectionClosedFuture = null;
 
+	// Compression should not be used, it is not implemented in this class
+	private static final boolean USE_COMPRESSION = false;
+
 	// Holds a list of  received message fragments for forming the final message
 	private final ArrayList<CharSequence> messageFragments = new ArrayList<>();
 
@@ -35,10 +38,10 @@ public class Gateway implements WebSocket.Listener {
 	public static void Start() {
 
 		// Fetch the gateway URL
-		API.Request( "GET", "gateway/bot", null ).thenAccept( ( JsonObject response ) -> {
+		API.Request( "GET", "gateway/bot", null, null ).thenAccept( ( JsonObject response ) -> {
 
 			// Add connection properties to the returned URL
-			URI url = URI.create( String.format( "%s/?v=%s&encoding=json&compress=false", response.get( "url" ).getAsString(), Config.Get( "discord.api.version", null ) ) );
+			URI url = URI.create( String.format( "%s/?v=%s&encoding=json&compress=%b", response.get( "url" ).getAsString(), Config.Get( "discord.api.version", null ), USE_COMPRESSION ) );
 
 			// Begin the first connection to the above URL
 			Connect( url, new Gateway() );
@@ -82,11 +85,15 @@ public class Gateway implements WebSocket.Listener {
 		payload.addProperty( "op", operationCode );
 		payload.add( "d", ( JsonElement ) data );
 
+		Utilities.Log( "Sending: {}", payload.toString() );
+
 		webSocket.sendText( payload.toString(), true );
 
 	}
 
 	private void SendHeartbeat( WebSocket webSocket ) {
+
+		Utilities.Log( "Sending heartbeat with sequence number: {}...", sequenceNumber );
 
 		this.Send( webSocket, OperationCode.Heartbeat, this.sequenceNumber );
 
@@ -96,15 +103,22 @@ public class Gateway implements WebSocket.Listener {
 
 	private void StartHeartbeating( WebSocket webSocket, int interval ) {
 
+		Utilities.Log( "Started heartbeating every {} ms...", interval );
+
 		boolean sentInitialBeat = false;
 
 		while ( IsConnected( webSocket ) && !heartbeatFuture.isCancelled() ) {
 
 			try {
+				Utilities.Log( "Waiting interval..." );
+
 				if ( !sentInitialBeat ) {
+					//noinspection BusyWait
 					Thread.sleep( Math.round( interval * Math.random() ) );
+					sentInitialBeat = true;
 
 				} else {
+					//noinspection BusyWait
 					Thread.sleep( Math.round( interval ) );
 				}
 
@@ -117,6 +131,8 @@ public class Gateway implements WebSocket.Listener {
 			this.SendHeartbeat( webSocket );
 
 		}
+
+		Utilities.Log( "Finished heartbeating." );
 
 	}
 
@@ -181,10 +197,52 @@ public class Gateway implements WebSocket.Listener {
 			// Store the opcode in the payload for easy access
 			int operationCode = payload.get( "op" ).getAsInt();
 
+			// If this is the initial welcome message...
 			if ( operationCode == OperationCode.Hello && ( payload.has( "d" ) && !payload.get( "d" ).isJsonNull() ) ) {
-				int interval = payload.getAsJsonObject( "d" ).get( "heartbeat_interval" ).getAsInt();
 
+				// Start heartbeating using the provided interval
+				int interval = payload.getAsJsonObject( "d" ).get( "heartbeat_interval" ).getAsInt();
 				this.heartbeatFuture = CompletableFuture.runAsync( () -> this.StartHeartbeating( webSocket, interval ) );
+
+				// Create an identify payload
+				JsonObject identifyProperties = new JsonObject();
+				identifyProperties.addProperty( "os", System.getProperty( "os.name" ) );
+				identifyProperties.addProperty( "browser", Config.Get( "discord.library", null ) );
+				identifyProperties.addProperty( "device", Config.Get( "discord.library", null ) );
+
+				JsonObject identifyPayload = new JsonObject();
+				identifyPayload.addProperty( "token", Config.Get( "discord.token", null ) );
+				identifyPayload.addProperty( "intents", 1 << 9 ); // GUILD_MESSAGES
+				identifyPayload.addProperty( "large_threshold", 250 );
+				identifyPayload.addProperty( "compress", USE_COMPRESSION );
+				identifyPayload.add( "properties", identifyProperties );
+
+				// Send the identify payload
+				this.Send( webSocket, OperationCode.Identify, identifyPayload );
+
+			} else if ( operationCode == OperationCode.HeartbeatAcknowledgement ) {
+				// TODO: Somehow inform the SendHeartbeat() function that the last heartbeat was acknowledged
+
+			// Send a heartbeat if the gateway requests it
+			} else if ( operationCode == OperationCode.Heartbeat ) {
+				this.SendHeartbeat( webSocket );
+
+			} else if ( operationCode == OperationCode.Dispatch && ( payload.has( "t" ) && !payload.get( "t" ).isJsonNull() ) && ( payload.has( "d" ) && !payload.get( "d" ).isJsonNull() ) ) {
+
+				if ( payload.get( "t" ).getAsString().equals( "READY" ) ) {
+					Utilities.Log( "We are ready! {}", payload.getAsJsonObject( "d ").getAsJsonObject( "user" ).get( "username" ).getAsString() );
+
+				} else {
+					Utilities.LOGGER.warn( "Unknown event dispatch: '{}'", payload.get( "t" ).getAsString() );
+				}
+
+
+			// TODO: Invalid Session
+			// TODO: Reconnect
+
+			// Unknown operation code?
+			} else {
+				Utilities.LOGGER.warn( "Unknown gateway operation code: '{}'", operationCode );
 			}
 
 		}

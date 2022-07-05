@@ -81,7 +81,7 @@ public class PlayerManagerMixin {
 		API.ExecuteWebhook( Config.Get( "discord.webhook.log", null ), logEmbed, true );
 
 		// Update the name of the category with the new number of active players
-		Utilities.UpdateCategoryStatus( String.format( "%d Playing", Objects.requireNonNull( player.getServer() ).getCurrentPlayerCount() ) );
+		Utilities.UpdateCategoryStatus( String.format( "%d Playing", Objects.requireNonNull( player.getServer() ).getCurrentPlayerCount() ), "Player joined Minecraft Server." );
 
 	}
 
@@ -139,7 +139,7 @@ public class PlayerManagerMixin {
 
 		// Update the name of the category with the new number of active players, or none
 		int playerCount = Objects.requireNonNull( player.getServer() ).getCurrentPlayerCount();
-		Utilities.UpdateCategoryStatus( ( playerCount > 0 ? String.format( "%d Playing", playerCount ) : "Empty" ) );
+		Utilities.UpdateCategoryStatus( ( playerCount > 0 ? String.format( "%d Playing", playerCount ) : "Empty" ), "Player left Minecraft Server." );
 
 		// Remove the player's IP address from the dictionary
 		playerAddresses.remove( player.getUuid() );

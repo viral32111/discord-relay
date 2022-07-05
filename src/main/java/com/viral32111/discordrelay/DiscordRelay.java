@@ -19,7 +19,7 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 	public void onInitializeServer() {
 
 		// Display message in the console
-		Utilities.Log( "Discord Relay has initialized." );
+		Utilities.Log( "Initialized." );
 
 		// Load the configuration file
 		try {
@@ -56,11 +56,17 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		// Create an embed for the log message
 		JsonObject logEmbedFieldAddress = new JsonObject();
 		logEmbedFieldAddress.addProperty( "name", "Address" );
-		logEmbedFieldAddress.addProperty( "value", String.format( "`%s`", Objects.requireNonNull( Config.Get( "public-server-address" ) ) ) );
+		logEmbedFieldAddress.addProperty( "value", String.format( "`%s`", Objects.requireNonNull( Config.Get( "public-server-address", null ) ) ) );
 		logEmbedFieldAddress.addProperty( "inline", true );
+
+		JsonObject logEmbedFieldVersion = new JsonObject();
+		logEmbedFieldVersion.addProperty( "name", "Version" );
+		logEmbedFieldVersion.addProperty( "value", String.format( "`%s`", server.getVersion() ) );
+		logEmbedFieldVersion.addProperty( "inline", true );
 
 		JsonArray logEmbedFields = new JsonArray();
 		logEmbedFields.add( logEmbedFieldAddress );
+		logEmbedFields.add( logEmbedFieldVersion );
 
 		JsonObject logsEmbedFooter = new JsonObject();
 		logsEmbedFooter.addProperty( "text", Utilities.CurrentDateTime() );
@@ -76,7 +82,7 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		API.ExecuteWebhook( Config.Get( "discord.webhook.log", null ), logEmbed, true );
 
 		// Update the name of the category to indicate the server is now open with no players online
-		Utilities.UpdateCategoryStatus( "Empty" );
+		Utilities.UpdateCategoryStatus( "Empty", "Minecraft Server has started." );
 
 	}
 
@@ -97,11 +103,17 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		// Create an embed for the log message
 		JsonObject logEmbedFieldAddress = new JsonObject();
 		logEmbedFieldAddress.addProperty( "name", "Address" );
-		logEmbedFieldAddress.addProperty( "value", String.format( "`%s`", Objects.requireNonNull( Config.Get( "public-server-address" ) ) ) );
+		logEmbedFieldAddress.addProperty( "value", String.format( "`%s`", Objects.requireNonNull( Config.Get( "public-server-address", null ) ) ) );
 		logEmbedFieldAddress.addProperty( "inline", true );
+
+		JsonObject logEmbedFieldVersion = new JsonObject();
+		logEmbedFieldVersion.addProperty( "name", "Version" );
+		logEmbedFieldVersion.addProperty( "value", String.format( "`%s`", server.getVersion() ) );
+		logEmbedFieldVersion.addProperty( "inline", true );
 
 		JsonArray logEmbedFields = new JsonArray();
 		logEmbedFields.add( logEmbedFieldAddress );
+		logEmbedFields.add( logEmbedFieldVersion );
 
 		JsonObject logsEmbedFooter = new JsonObject();
 		logsEmbedFooter.addProperty( "text", Utilities.CurrentDateTime() );
@@ -117,7 +129,7 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		API.ExecuteWebhook( Config.Get( "discord.webhook.log", null ), logEmbed, true );
 
 		// Update the name of the category to indicate the server is closed
-		Utilities.UpdateCategoryStatus( "Offline" );
+		Utilities.UpdateCategoryStatus( "Offline", "Minecraft Server has stopped." );
 
 	}
 

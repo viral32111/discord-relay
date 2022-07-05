@@ -8,25 +8,25 @@ import com.viral32111.discordrelay.Utilities;
 
 import javax.annotation.Nullable;
 import java.net.http.HttpResponse;
-import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 
 // Encapsulates everything for making requests to the Discord API
 public class API {
 
 	// Makes an asynchronous request to the API
-	public static CompletableFuture<JsonObject> Request( String method, String endpoint, @Nullable JsonObject data ) {
+	public static CompletableFuture<JsonObject> Request( String method, String endpoint, @Nullable JsonObject data, @Nullable String auditLogReason ) {
 
 		// Create a future to return then complete later on
 		CompletableFuture<JsonObject> future = new CompletableFuture<>();
 
 		// The HTTP headers for this request
 		// NOTE: Does not include User-Agent or From as the Utilities.HttpRequest() method adds those
-		Map<String, String> requestHeaders = Map.of(
-			"Accept", "application/json, */*",
-			"Content-Type", "application/json",
-			"Authorization", String.format( "Bot %s", Config.Get( "discord.token", null ) )
-		);
+		HashMap<String, String> requestHeaders = new HashMap<>();
+		requestHeaders.put( "Accept", "application/json, */*" );
+		requestHeaders.put( "Content-Type", "application/json" );
+		requestHeaders.put( "Authorization", String.format( "Bot %s", Config.Get( "discord.token", null ) ) );
+		if ( auditLogReason != null ) requestHeaders.put( "X-Audit-Log-Reason", auditLogReason );
 
 		// Send a HTTP request to the provided API endpoint, with an optional JSON payload
 		Utilities.HttpRequest( method, String.format( "https://%s/v%s/%s", Config.Get( "discord.api.url", null ), Config.Get( "discord.api.version", null ), endpoint ), requestHeaders, ( data != null ? data.toString() : null ) ).thenAccept( ( HttpResponse<String> response ) -> {
@@ -50,7 +50,7 @@ public class API {
 	}
 
 	// Helper to send a message to a webhook
-	public static CompletableFuture<JsonObject> ExecuteWebhook( String identifierAndToken, JsonObject payload, boolean isEmbed ) {
+	public static void ExecuteWebhook( String identifierAndToken, JsonObject payload, boolean isEmbed ) {
 
 		// Is the provided JSON object just an embed?
 		if ( isEmbed ) {
@@ -64,16 +64,16 @@ public class API {
 			embeds.add( payload );
 
 			// Payload to send with the embeds arrays and mentions object
-			JsonObject wrapper = new JsonObject();
-			wrapper.add( "embeds", embeds );
-			wrapper.add( "allowed_mentions", allowedMentions );
+			JsonObject embedsPayload = new JsonObject();
+			embedsPayload.add( "embeds", embeds );
+			embedsPayload.add( "allowed_mentions", allowedMentions );
 
 			// Execute the webhook with the wrapped embed payload
-			return Request( "POST", String.format( "webhook/%s", identifierAndToken ), wrapper );
+			Request( "POST", String.format( "webhooks/%s", identifierAndToken ), embedsPayload, null );
 
 		// Otherwise it must be an entire payload, so just send it as is
 		} else {
-			return Request( "POST", String.format( "webhook/%s", identifierAndToken ), payload );
+			Request( "POST", String.format( "webhooks/%s", identifierAndToken ), payload, null );
 		}
 
 	}

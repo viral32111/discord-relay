@@ -85,7 +85,7 @@ public class Config {
 
 		// Apply any placeholder replacements to the value before returning if any were given
 		if ( placeholderValues != null ) for ( Map.Entry<String, String> pair : placeholderValues.entrySet() ) {
-			value = value.replaceAll( pair.getKey(), pair.getValue() );
+			value = value.replaceAll( String.format( "\\{%s\\}", pair.getKey() ), pair.getValue() );
 		}
 
 		// Return the configuration value
@@ -112,6 +112,7 @@ public class Config {
 		// Get the existing Discord configuration, or create an empty one, then add any missing properties
 		JsonObject discordConfiguration = ( rootConfiguration.has( "discord" ) ? rootConfiguration.getAsJsonObject( "discord" ) : new JsonObject() );
 		if ( !discordConfiguration.has( "token" ) ) discordConfiguration.addProperty( "token", "APPLICATION-TOKEN" );
+		if ( !discordConfiguration.has( "library" ) ) discordConfiguration.addProperty( "library", "Minecraft Server" );
 
 		// Get the existing API configuration from the Discord configuration, or create an empty one, then add any missing properties
 		// https://discord.com/developers/docs/reference#api-reference-base-url

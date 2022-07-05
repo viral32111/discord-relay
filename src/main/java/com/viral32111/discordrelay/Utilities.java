@@ -81,14 +81,14 @@ public class Utilities {
 
 	// Helper to update the server status in the category name
 	// TODO: Implement rate-limiting & queue
-	public static void UpdateCategoryStatus( String status ) {
+	public static void UpdateCategoryStatus( String status, @Nullable String auditLogReason ) {
 
 		// Create the payload to send
 		JsonObject payload = new JsonObject();
 		payload.addProperty( "name", Config.Get( "discord.category.name", Map.of( "status", status ) ) );
 
 		// Send the request
-		API.Request( "PATCH", String.format( "channels/%s", Config.Get( "discord.category.id", null ) ), payload );
+		API.Request( "PATCH", String.format( "channels/%s", Config.Get( "discord.category.id", null ) ), payload, auditLogReason );
 
 	}
 
