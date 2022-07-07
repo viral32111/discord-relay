@@ -6,6 +6,7 @@ import com.google.gson.JsonParser;
 import com.viral32111.discordrelay.Config;
 import com.viral32111.discordrelay.Utilities;
 import com.viral32111.discordrelay.discord.types.OperationCode;
+import jdk.jshell.execution.Util;
 
 import javax.annotation.Nullable;
 import java.net.URI;
@@ -14,6 +15,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 // Client for the Discord Gateway
 public class Gateway implements WebSocket.Listener {
@@ -31,8 +34,9 @@ public class Gateway implements WebSocket.Listener {
 	// The current payload sequence number
 	private Integer sequenceNumber = null;
 
-	// The future for the periodic heartbeats
+	// The futures for heartbeating
 	private CompletableFuture<?> heartbeatFuture = null;
+	private CompletableFuture<?> heartbeatAcknowledgementFuture = null;
 
 	// Starts the initial connection to the gateway
 	public static void Start() {
@@ -95,9 +99,17 @@ public class Gateway implements WebSocket.Listener {
 
 		Utilities.Log( "Sending heartbeat with sequence number: {}...", sequenceNumber );
 
+		heartbeatAcknowledgementFuture = new CompletableFuture<>();
+
 		this.Send( webSocket, OperationCode.Heartbeat, this.sequenceNumber );
 
-		// TODO: Check for acknowledgement
+		heartbeatAcknowledgementFuture.orTimeout( 5, TimeUnit.SECONDS ).thenAccept( ( $ ) -> {
+			Utilities.Log( "Received heartbeat acknowledgement within 5 seconds" );
+		} ).exceptionally( ( exception ) -> {
+			Utilities.LOGGER.warn( "Never received heartbeat acknowledgement" );
+			webSocket.sendClose( 1000, "Never received heartbeat acknowledgement" );
+			return null;
+		} );
 
 	}
 
@@ -126,8 +138,10 @@ public class Gateway implements WebSocket.Listener {
 				e.printStackTrace();
 			}
 
+			Utilities.Log( "Interval waited, checking if should still run..." );
 			if ( !IsConnected( webSocket ) || heartbeatFuture.isCancelled() ) break;
 
+			Utilities.Log( "Sending periodic heartbeat..." );
 			this.SendHeartbeat( webSocket );
 
 		}
@@ -161,6 +175,7 @@ public class Gateway implements WebSocket.Listener {
 		this.messageFragments.clear();
 		this.sequenceNumber = null;
 		this.heartbeatFuture = null;
+		this.heartbeatAcknowledgementFuture = null;
 
 		// Complete the future to indicate the connection is now closed
 		connectionClosedFuture.complete( null );
@@ -221,16 +236,20 @@ public class Gateway implements WebSocket.Listener {
 				this.Send( webSocket, OperationCode.Identify, identifyPayload );
 
 			} else if ( operationCode == OperationCode.HeartbeatAcknowledgement ) {
-				// TODO: Somehow inform the SendHeartbeat() function that the last heartbeat was acknowledged
+				Utilities.Log( "Got heartbeat ack opcode" );
+				if ( this.heartbeatAcknowledgementFuture == null ) throw new RuntimeException( "Not ready for heartbeat acknowledgement" );
+				this.heartbeatAcknowledgementFuture.complete( null );
 
 			// Send a heartbeat if the gateway requests it
 			} else if ( operationCode == OperationCode.Heartbeat ) {
+				Utilities.Log( "Heartbeat requested" );
 				this.SendHeartbeat( webSocket );
 
 			} else if ( operationCode == OperationCode.Dispatch && ( payload.has( "t" ) && !payload.get( "t" ).isJsonNull() ) && ( payload.has( "d" ) && !payload.get( "d" ).isJsonNull() ) ) {
+				Utilities.Log( "Event dispatch..." );
 
 				if ( payload.get( "t" ).getAsString().equals( "READY" ) ) {
-					Utilities.Log( "We are ready! {}", payload.getAsJsonObject( "d ").getAsJsonObject( "user" ).get( "username" ).getAsString() );
+					//Utilities.Log( "We are ready! {}", payload.getAsJsonObject( "d ").getAsJsonObject( "user" ).get( "username" ).getAsString() );
 
 				} else {
 					Utilities.LOGGER.warn( "Unknown event dispatch: '{}'", payload.get( "t" ).getAsString() );
