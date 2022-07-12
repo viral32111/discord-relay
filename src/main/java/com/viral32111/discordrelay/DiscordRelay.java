@@ -21,6 +21,9 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		// Display message in the console
 		Utilities.Log( "Initialized." );
 
+		// Do not parse any mentions
+		API.AllowedMentions.add( "parse", new JsonArray() );
+
 		// Load the configuration file
 		try {
 			Config.Load();

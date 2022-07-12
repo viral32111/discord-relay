@@ -14,6 +14,10 @@ import java.util.concurrent.CompletableFuture;
 // Encapsulates everything for making requests to the Discord API
 public class API {
 
+	// Holds what the types of mentions are allowed
+	// NOTE: Setup in server initialise method of main class
+	public static final JsonObject AllowedMentions = new JsonObject();
+
 	// Makes an asynchronous request to the API
 	public static CompletableFuture<JsonObject> Request( String method, String endpoint, @Nullable JsonObject data, @Nullable String auditLogReason ) {
 
@@ -55,10 +59,6 @@ public class API {
 		// Is the provided JSON object just an embed?
 		if ( isEmbed ) {
 
-			// Do not allow any mentions
-			JsonObject allowedMentions = new JsonObject();
-			allowedMentions.add( "parse", new JsonArray() );
-
 			// Array of the provided embed
 			JsonArray embeds = new JsonArray();
 			embeds.add( payload );
@@ -66,7 +66,7 @@ public class API {
 			// Payload to send with the embeds arrays and mentions object
 			JsonObject embedsPayload = new JsonObject();
 			embedsPayload.add( "embeds", embeds );
-			embedsPayload.add( "allowed_mentions", allowedMentions );
+			embedsPayload.add( "allowed_mentions", AllowedMentions );
 
 			// Execute the webhook with the wrapped embed payload
 			Request( "POST", String.format( "webhooks/%s", identifierAndToken ), embedsPayload, null );

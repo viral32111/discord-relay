@@ -1,5 +1,9 @@
 package com.viral32111.discordrelay.mixin;
 
+import com.google.gson.JsonObject;
+import com.viral32111.discordrelay.Config;
+import com.viral32111.discordrelay.Utilities;
+import com.viral32111.discordrelay.discord.API;
 import net.minecraft.network.packet.c2s.play.ChatMessageC2SPacket;
 import net.minecraft.server.filter.FilteredMessage;
 import net.minecraft.server.network.ServerPlayNetworkHandler;
@@ -10,41 +14,36 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.Map;
+
 @Mixin( ServerPlayNetworkHandler.class )
 @SuppressWarnings( "unused" ) // Mixins are used, the IDE just doesn't know it
 public class ServerPlayNetworkHandlerMixin {
 
+	// The player these events are for
 	@Shadow
 	public ServerPlayerEntity player;
 
 	@Inject( method = "handleMessage", at = @At( "TAIL" ) )
 	private void handleMessage( ChatMessageC2SPacket packet, FilteredMessage<String> message, CallbackInfo callbackInfo ) {
+
+		// Store the content of the message
 		String messageContent = message.raw();
 
-		PlayerChat.EVENT.invoker().interact( player, messageContent );
+		// Display message in the console
+		Utilities.Log( "Relaying chat message '{}' for player '{}'.", messageContent, player.getName().getString() );
 
-		/*if ( messageContent.startsWith( "/" ) ) {
-			// TODO: Command Blocks, Sign Commands, Console Commands
-			CommandExecute.EVENT.invoker().interact( messageContent.substring( 1 ), player );
-		} else {
-			PlayerChat.EVENT.invoker().interact( player, message.getFiltered() );
-		}*/
+		// Create payload for the chat message
+		JsonObject chatPayload = new JsonObject();
+		chatPayload.addProperty( "avatar_url", Config.Get( "external.face", Map.of( "uuid", player.getUuidAsString() ) ) );
+		chatPayload.addProperty( "username", Utilities.GetPlayerName( player ) );
+		chatPayload.addProperty( "content", messageContent ); // TODO: Escape markdown
+		chatPayload.add( "allowed_mentions", API.AllowedMentions );
 
-		// Send message to console
-		/*Utilities.Log( "Relaying player '{}' chat message '{}'...", player.getName().getString(), message );
+		// Send the chat message to the relay channel
+		API.ExecuteWebhook( Config.Get( "discord.webhook.relay", null ), chatPayload, false );
 
-		// Send message to relay
-		JsonObject relayPayload = new JsonObject();
-		relayPayload.addProperty( "avatar_url", String.format( Objects.requireNonNull( Config.Get( "external.face" ) ), player.getUuidAsString() ) );
-		relayPayload.addProperty( "username", Utilities.getPlayerName( player ) );
-		relayPayload.addProperty( "content", Utilities.escapeDiscordMarkdown( message ) );
-		relayPayload.add( "allowed_mentions", allowedMentions );
-
-		API.ExecuteWebhook( Objects.requireNonNull( Config.Get( "discord.webhook.relay" ) ), relayPayload ).thenAccept( ( HttpResponse<String> response ) -> {
-			if ( response.statusCode() >= 400 ) Utilities.LOGGER.error( "Got bad response when executing webhook! ({}: {})", response.statusCode(), response.body() );
-		} );
-
-	}*/
+	}
 
 	/*private void onCommandExecute( String command, @Nullable Entity executor ) {
 		if ( executor != null && executor.isPlayer() ) {
