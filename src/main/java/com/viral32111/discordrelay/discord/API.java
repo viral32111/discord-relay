@@ -36,11 +36,17 @@ public class API {
 		Utilities.HttpRequest( method, String.format( "https://%s/v%s/%s", Config.Get( "discord.api.url", null ), Config.Get( "discord.api.version", null ), endpoint ), requestHeaders, ( data != null ? data.toString() : null ) ).thenAccept( ( HttpResponse<String> response ) -> {
 
 			// Error if the request was unsuccessful
-			if ( response.statusCode() < 200 || response.statusCode() > 299 ) throw new RuntimeException( String.format( "API request unsuccessful with code: %d", response.statusCode() ) );
+			if ( response.statusCode() < 200 || response.statusCode() > 299 ) {
+				future.completeExceptionally( new Exception( String.format( "API request unsuccessful with code: %d", response.statusCode() ) ) );
+				return;
+			}
 
 			// Store the content of the response, and error if it is empty
 			String responseBody = response.body();
-			if ( responseBody.length() <= 0 ) throw new RuntimeException( "API response has no body." );
+			if ( responseBody.length() <= 0 ) {
+				future.completeExceptionally( new Exception( "API response has no body." ) );
+				return;
+			}
 
 			// Parse the response content as JSON, and complete the future
 			JsonObject responseJson = JsonParser.parseString( responseBody ).getAsJsonObject();

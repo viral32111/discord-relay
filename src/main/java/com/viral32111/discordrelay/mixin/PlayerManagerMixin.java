@@ -64,7 +64,7 @@ public class PlayerManagerMixin {
 		logEmbedFields.add( logEmbedFieldAddress );
 
 		JsonObject logEmbedThumbnail = new JsonObject();
-		logEmbedThumbnail.addProperty( "url", Config.Get( "external.profile", Map.of( "uuid", player.getUuidAsString() ) ) );
+		logEmbedThumbnail.addProperty( "url", Config.Get( "external.face", Map.of( "uuid", player.getUuidAsString() ) ) );
 
 		JsonObject logsEmbedFooter = new JsonObject();
 		logsEmbedFooter.addProperty( "text", Utilities.CurrentDateTime() );

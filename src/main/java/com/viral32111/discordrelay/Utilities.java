@@ -61,8 +61,8 @@ public class Utilities {
 	public static String GetPlayerName( ServerPlayerEntity player ) {
 
 		// Store the player's username and nickname
-		String userName = player.getName().getContent().toString();
-		String displayName = player.getDisplayName().getContent().toString();
+		String userName = player.getName().getString();
+		String displayName = player.getDisplayName().getString();
 
 		// If the username and nickname are the same, just return the name
 		if ( displayName.equals( userName ) ) {

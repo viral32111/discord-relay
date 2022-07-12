@@ -1,22 +1,16 @@
 package com.viral32111.discordrelay.discord;
 
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.viral32111.discordrelay.Config;
 import com.viral32111.discordrelay.Utilities;
 import com.viral32111.discordrelay.discord.types.OperationCode;
-import jdk.jshell.execution.Util;
 
-import javax.annotation.Nullable;
 import java.net.URI;
 import java.net.http.WebSocket;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 
 // Client for the Discord Gateway
 public class Gateway implements WebSocket.Listener {
@@ -38,6 +32,10 @@ public class Gateway implements WebSocket.Listener {
 	private CompletableFuture<?> heartbeatFuture = null;
 	private CompletableFuture<?> heartbeatAcknowledgementFuture = null;
 
+	// Used to gracefully disconnect
+	private static WebSocket webSocketConnection = null;
+	private static boolean doNotReconnect = false;
+
 	// Starts the initial connection to the gateway
 	public static void Start() {
 
@@ -54,8 +52,17 @@ public class Gateway implements WebSocket.Listener {
 
 	}
 
+	public static void Stop() {
+		if ( webSocketConnection == null || webSocketConnection.isInputClosed() || webSocketConnection.isOutputClosed() ) throw new RuntimeException( "Cannot disconnect websocket that is not connected" );
+
+		Utilities.Log( "Closing the websocket..." );
+		doNotReconnect = true;
+		webSocketConnection.sendClose( 1000, "Goodbye" );
+	}
+
 	// Connects to a websocket server, and reconnects whenever the close future completes
 	private static void Connect( URI url, Gateway listener ) {
+		Utilities.Log( "Connect() called" );
 
 		// Create the future for closing
 		connectionClosedFuture = new CompletableFuture<>();
@@ -74,7 +81,14 @@ public class Gateway implements WebSocket.Listener {
 			.buildAsync( url, listener );
 
 		// Reconnect to the same URL and with the same listener instance whenever the future completes
-		connectionClosedFuture.thenAccept( ( $ ) -> Connect( url, listener ) );
+		connectionClosedFuture.thenAccept( ( $ ) -> {
+			if ( !doNotReconnect ) {
+				Utilities.Log( "Reconnecting..." );
+				Connect( url, listener );
+			} else {
+				Utilities.Log( "Not reconnecting, this is the end" );
+			}
+		} );
 
 	}
 
@@ -83,33 +97,67 @@ public class Gateway implements WebSocket.Listener {
 		return !( webSocket.isInputClosed() || webSocket.isOutputClosed() );
 	}
 
-	private void Send( WebSocket webSocket, int operationCode, @Nullable Object data ) {
+	/*private void Send( WebSocket webSocket, int operationCode, @Nullable JsonElement data ) {
 
-		JsonObject payload = new JsonObject();
-		payload.addProperty( "op", operationCode );
-		payload.add( "d", ( JsonElement ) data );
+		try {
+			JsonObject payload = new JsonObject();
+			payload.addProperty( "op", operationCode );
+			payload.add( "d", data );
 
-		Utilities.Log( "Sending: {}", payload.toString() );
+			Utilities.Log( "Sending: {}", payload.toString() );
 
-		webSocket.sendText( payload.toString(), true );
+			//webSocket.sendText( payload.toString(), true );
+		} catch ( Exception exception ) {
+			exception.printStackTrace();
+		}
 
-	}
+	}*/
 
 	private void SendHeartbeat( WebSocket webSocket ) {
 
-		Utilities.Log( "Sending heartbeat with sequence number: {}...", sequenceNumber );
-
 		heartbeatAcknowledgementFuture = new CompletableFuture<>();
 
-		this.Send( webSocket, OperationCode.Heartbeat, this.sequenceNumber );
+		try {
+			Utilities.Log( "Sending heartbeat with sequence number: {}...", sequenceNumber );
+			//this.Send( webSocket, OperationCode.Heartbeat, new JsonPrimitive( this.sequenceNumber ) );
 
+			JsonObject heartbeatPayload = new JsonObject();
+			heartbeatPayload.addProperty( "op", OperationCode.Heartbeat );
+			heartbeatPayload.addProperty( "d", this.sequenceNumber );
+
+			Utilities.Log( "Sending: {}", heartbeatPayload.toString() );
+			webSocket.sendText( heartbeatPayload.toString(), true );
+		} catch ( Exception exception ) {
+			exception.printStackTrace();
+		}
+
+		Utilities.Log( "Registered heartbeat acknowledgement callback" );
+		heartbeatAcknowledgementFuture.thenAccept( ( $ ) -> {
+			Utilities.Log( "Received heartbeat acknowledgement" );
+		} );
+
+		try {
+			Utilities.Log( "Waiting for heartbeat acknowledgement, or timing out..." );
+			heartbeatAcknowledgementFuture.orTimeout( 5, TimeUnit.SECONDS ).get();
+		} catch ( InterruptedException exception ) {
+			Utilities.Log( "Heartbeat acknowledgement future interrupted! ({})", exception.getMessage() );
+		} catch ( ExecutionException exception ) {
+			Utilities.Log( "Heartbeat acknowledgement future completed exceptionally! ({})", exception.getMessage() );
+			webSocket.sendClose( 1000, "Never received heartbeat acknowledgement" );
+		} catch ( CancellationException exception ) {
+			Utilities.Log( "Heartbeat acknowledgement future cancelled! ({})", exception.getMessage() );
+		} catch ( Exception exception ) {
+			exception.printStackTrace();
+		}
+
+		/*Utilities.Log( "Waiting to receive heartbeat acknowledgement, or dying after 5 seconds..." );
 		heartbeatAcknowledgementFuture.orTimeout( 5, TimeUnit.SECONDS ).thenAccept( ( $ ) -> {
 			Utilities.Log( "Received heartbeat acknowledgement within 5 seconds" );
 		} ).exceptionally( ( exception ) -> {
 			Utilities.LOGGER.warn( "Never received heartbeat acknowledgement" );
 			webSocket.sendClose( 1000, "Never received heartbeat acknowledgement" );
 			return null;
-		} );
+		} );*/
 
 	}
 
@@ -122,20 +170,28 @@ public class Gateway implements WebSocket.Listener {
 		while ( IsConnected( webSocket ) && !heartbeatFuture.isCancelled() ) {
 
 			try {
-				Utilities.Log( "Waiting interval..." );
+				Utilities.Log( "Waiting interval {} ms...", interval );
 
 				if ( !sentInitialBeat ) {
+					long initialInterval = Math.round( interval * Math.random() );
+
+					Utilities.Log( "Initial heartbeat of {} ms", initialInterval );
+
 					//noinspection BusyWait
-					Thread.sleep( Math.round( interval * Math.random() ) );
+					Thread.sleep( initialInterval );
 					sentInitialBeat = true;
 
 				} else {
+					Utilities.Log( "Regular heartbeat of {} ms", interval );
+
 					//noinspection BusyWait
-					Thread.sleep( Math.round( interval ) );
+					Thread.sleep( interval );
 				}
 
-			} catch ( InterruptedException e ) {
-				e.printStackTrace();
+			} catch ( InterruptedException exception ) {
+				Utilities.Log( "Wait heartbeat interval interrupted! ({})", exception.getMessage() );
+			} catch ( Exception exception ) {
+				exception.printStackTrace();
 			}
 
 			Utilities.Log( "Interval waited, checking if should still run..." );
@@ -143,6 +199,8 @@ public class Gateway implements WebSocket.Listener {
 
 			Utilities.Log( "Sending periodic heartbeat..." );
 			this.SendHeartbeat( webSocket );
+
+			Utilities.Log( "Should loop still run: {}, {}", IsConnected( webSocket ), !heartbeatFuture.isCancelled() );
 
 		}
 
@@ -156,6 +214,8 @@ public class Gateway implements WebSocket.Listener {
 
 		Utilities.Log( "Gateway connection opened." );
 
+		webSocketConnection = webSocket;
+
 		// Run default action
 		WebSocket.Listener.super.onOpen( webSocket );
 
@@ -168,8 +228,34 @@ public class Gateway implements WebSocket.Listener {
 		Utilities.Log( "Gateway connection closed: {} ({}).", code, reason );
 
 		// Stop heartbeating
-		this.heartbeatFuture.cancel( true );
-		this.heartbeatFuture.join();
+		try {
+			if ( this.heartbeatFuture != null ) {
+				Utilities.Log( "Cancelling heartbeat future..." );
+				this.heartbeatFuture.cancel( true );
+			}
+
+			if ( this.heartbeatAcknowledgementFuture != null ) {
+				Utilities.Log( "Cancelling heartbeat acknowledgement future..." );
+				this.heartbeatAcknowledgementFuture.cancel( true );
+			}
+
+			if ( this.heartbeatFuture != null ) {
+				Utilities.Log( "Waiting for heartbeat future..." );
+				this.heartbeatFuture.join();
+			}
+
+			if ( this.heartbeatAcknowledgementFuture != null ) {
+				Utilities.Log( "Waiting for heartbeat acknowledgement future..." );
+				this.heartbeatAcknowledgementFuture.join();
+			}
+		} catch ( CancellationException exception ) {
+			Utilities.Log( "Cancellation exception while cancelling/waiting heartbeat futures! ({})", exception.getMessage() );
+		} catch ( CompletionException exception ) {
+			Utilities.Log( "Completion exception while cancelling/waiting heartbeat futures! ({})", exception.getMessage() );
+		} catch ( Exception exception ) {
+			exception.printStackTrace();
+		}
+
 
 		// Cleanup for the next run
 		this.messageFragments.clear();
@@ -178,6 +264,7 @@ public class Gateway implements WebSocket.Listener {
 		this.heartbeatAcknowledgementFuture = null;
 
 		// Complete the future to indicate the connection is now closed
+		Utilities.Log( "Completing connection close future..." );
 		connectionClosedFuture.complete( null );
 
 		// Return default action
@@ -233,7 +320,7 @@ public class Gateway implements WebSocket.Listener {
 				identifyPayload.add( "properties", identifyProperties );
 
 				// Send the identify payload
-				this.Send( webSocket, OperationCode.Identify, identifyPayload );
+				//this.Send( webSocket, OperationCode.Identify, identifyPayload );
 
 			} else if ( operationCode == OperationCode.HeartbeatAcknowledgement ) {
 				Utilities.Log( "Got heartbeat ack opcode" );

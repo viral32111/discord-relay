@@ -134,6 +134,9 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		// Update the name of the category to indicate the server is closed
 		Utilities.UpdateCategoryStatus( "Offline", "Minecraft Server has stopped." );
 
+		// Gracefully disconnect from the gateway
+		Gateway.Stop();
+
 	}
 
 }
