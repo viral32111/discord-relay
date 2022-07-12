@@ -77,9 +77,8 @@ task copyJarToServer {
 
 	doLast {
 		copy {
-			from "build/libs/DiscordRelay-0.5.1.jar"
+			from "${project.buildDir}/libs/${project.name}-${project.version}.jar"
 			into "../../Documents/Fabric Dev Server/mods"
 		}
-
 	}
 }
