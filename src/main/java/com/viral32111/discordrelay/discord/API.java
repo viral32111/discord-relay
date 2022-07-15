@@ -27,7 +27,7 @@ public class API {
 		// The HTTP headers for this request
 		// NOTE: Does not include User-Agent or From as the Utilities.HttpRequest() method adds those
 		HashMap<String, String> requestHeaders = new HashMap<>();
-		requestHeaders.put( "Accept", "application/json, */*" );
+		requestHeaders.put( "Accept", "application/json" );
 		requestHeaders.put( "Content-Type", "application/json" );
 		requestHeaders.put( "Authorization", String.format( "Bot %s", Config.Get( "discord.token", null ) ) );
 		if ( auditLogReason != null ) requestHeaders.put( "X-Audit-Log-Reason", auditLogReason );
@@ -37,14 +37,14 @@ public class API {
 
 			// Error if the request was unsuccessful
 			if ( response.statusCode() < 200 || response.statusCode() > 299 ) {
-				future.completeExceptionally( new Exception( String.format( "API request unsuccessful with code: %d", response.statusCode() ) ) );
+				future.completeExceptionally( new Exception( String.format( "Discord API request unsuccessful with code: %d", response.statusCode() ) ) );
 				return;
 			}
 
 			// Store the content of the response, and error if it is empty
 			String responseBody = response.body();
 			if ( responseBody.length() <= 0 ) {
-				future.completeExceptionally( new Exception( "API response has no body." ) );
+				future.completeExceptionally( new Exception( "Discord API response has no body." ) );
 				return;
 			}
 
