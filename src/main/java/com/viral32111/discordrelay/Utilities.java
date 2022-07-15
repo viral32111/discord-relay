@@ -57,20 +57,21 @@ public class Utilities {
 
 	}
 
+	// Checks if a player has a nickname by checking their display name is different to their account anme
+	public static boolean PlayerHasNickname( ServerPlayerEntity player ) {
+		return !player.getDisplayName().getString().equals( player.getName().getString() );
+	}
+
 	// Returns a player's name & nickname if they have a nickname, otherwise just the name
 	public static String GetPlayerName( ServerPlayerEntity player ) {
 
-		// Store the player's username and nickname
-		String userName = player.getName().getString();
-		String displayName = player.getDisplayName().getString();
+		// If the player has a nickname, return both names
+		if ( PlayerHasNickname( player ) ) {
+			return String.format( "%s (%s)", player.getDisplayName().getString(), player.getName().getString() );
 
-		// If the username and nickname are the same, just return the name
-		if ( displayName.equals( userName ) ) {
-			return userName;
-
-		// If they are different, return both
+		// Otherwise, return just the name
 		} else {
-			return String.format( "%s (%s)", displayName, userName );
+			return player.getName().getString();
 		}
 
 	}

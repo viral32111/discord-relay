@@ -61,27 +61,22 @@ public class PlayerManagerMixin {
 		relayEmbed.add( "author", relayEmbedAuthor );
 
 		// Create an embed for the log message
-		JsonObject logEmbedPlayerField = new JsonObject();
-		logEmbedPlayerField.addProperty( "name", "Name" );
-		logEmbedPlayerField.addProperty( "value", String.format( "[%s](%s)", Utilities.GetPlayerName( player ), Config.Get( "external.profile", Map.of( "uuid", player.getUuidAsString() ) ) ) );
-		logEmbedPlayerField.addProperty( "inline", false );
+		JsonObject logEmbedNameField = new JsonObject();
+		logEmbedNameField.addProperty( "name", "Name" );
+		logEmbedNameField.addProperty( "value", player.getName().getString() );
+		logEmbedNameField.addProperty( "inline", false );
 
-		JsonObject logEmbedIdentifierField = new JsonObject();
-		logEmbedIdentifierField.addProperty( "name", "UUID" );
-		logEmbedIdentifierField.addProperty( "value", String.format( "`%s`", player.getUuidAsString() ) );
-		logEmbedIdentifierField.addProperty( "inline", false );
+		JsonObject logEmbedNickField = new JsonObject();
+		logEmbedNickField.addProperty( "name", "Nickname" );
+		logEmbedNickField.addProperty( "value", ( Utilities.PlayerHasNickname( player ) ? player.getDisplayName().getString() : "**No nickname set.**" ) );
+		logEmbedNickField.addProperty( "inline", true );
 
 		JsonObject logEmbedAddressField = new JsonObject();
 		logEmbedAddressField.addProperty( "name", "IP Address" );
 		logEmbedAddressField.addProperty( "value", String.format( "`%s`", playerAddress ) );
 		logEmbedAddressField.addProperty( "inline", false );
 
-		JsonObject logEmbedLastPlayedField = new JsonObject();
-		logEmbedLastPlayedField.addProperty( "name", "Last Played" );
-		logEmbedLastPlayedField.addProperty( "value", "3 hours ago (for 10 minutes)" ); // TODO: This is an example
-		logEmbedLastPlayedField.addProperty( "inline", false );
-
-		/*JsonObject logEmbedLocationField = new JsonObject();
+		JsonObject logEmbedLocationField = new JsonObject();
 		logEmbedLocationField.addProperty( "name", "Location" );
 		logEmbedLocationField.addProperty( "value", "London, United Kingdom" ); // TODO: This is an example
 		logEmbedLocationField.addProperty( "inline", true );
@@ -89,13 +84,26 @@ public class PlayerManagerMixin {
 		JsonObject logEmbedSpoofField = new JsonObject();
 		logEmbedSpoofField.addProperty( "name", "Spoof" );
 		logEmbedSpoofField.addProperty( "value", "VPN in use (50% risk)" ); // TODO: This is an example
-		logEmbedSpoofField.addProperty( "inline", true );*/
+		logEmbedSpoofField.addProperty( "inline", true );
+
+		JsonObject logEmbedSeenField = new JsonObject();
+		logEmbedSeenField.addProperty( "name", "Last Seen" );
+		logEmbedSeenField.addProperty( "value", "3 hours ago (for 10 minutes)" ); // TODO: This is an example
+		logEmbedSeenField.addProperty( "inline", false );
+
+		JsonObject logEmbedIdentifierField = new JsonObject();
+		logEmbedIdentifierField.addProperty( "name", "Unique Identifier (UUID)" );
+		logEmbedIdentifierField.addProperty( "value", String.format( "[`%s`](%s)", player.getUuidAsString(), Config.Get( "external.profile", Map.of( "uuid", player.getUuidAsString() ) ) ) );
+		logEmbedIdentifierField.addProperty( "inline", false );
 
 		JsonArray logEmbedFields = new JsonArray();
-		logEmbedFields.add( logEmbedPlayerField );
-		logEmbedFields.add( logEmbedIdentifierField );
+		logEmbedFields.add( logEmbedNameField );
+		logEmbedFields.add( logEmbedNickField );
 		logEmbedFields.add( logEmbedAddressField );
-		logEmbedFields.add( logEmbedLastPlayedField );
+		logEmbedFields.add( logEmbedLocationField );
+		logEmbedFields.add( logEmbedSpoofField );
+		logEmbedFields.add( logEmbedSeenField );
+		logEmbedFields.add( logEmbedIdentifierField );
 
 		JsonObject logEmbedThumbnail = new JsonObject();
 		logEmbedThumbnail.addProperty( "url", Config.Get( "external.face", Map.of( "uuid", player.getUuidAsString() ) ) );
