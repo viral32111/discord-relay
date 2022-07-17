@@ -15,8 +15,11 @@ import java.time.Duration;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 // Methods & helpers used across the entire mod
 public class Utilities {
@@ -94,8 +97,30 @@ public class Utilities {
 	}
 
 	// Helper to display a message in the console with a prefix to identify the message is from this mod
+	// TODO: This but for warnings, errors & debug
 	public static void Log( String message, Object... params ) {
 		LOGGER.info( String.format( "[Discord Relay] %s", message ), params );
+	}
+
+	// Helper to convert a unit of time (e.g. seconds, milliseconds) to a pretty duration string (x hours, x minutes, x seconds)
+	public static String ToPrettyDuration( long totalDuration, TimeUnit timeUnit ) {
+
+		// Will hold the pretty duration strings if they are not zero
+		List<String> prettyDurations = new ArrayList<>();
+
+		// Get the duration as each unit
+		long hours = timeUnit.toHours( totalDuration );
+		long minutes = timeUnit.toMinutes( totalDuration );
+		long seconds = timeUnit.toSeconds( totalDuration );
+
+		// Add it to the array if it is not zero
+		if ( hours != 0 ) prettyDurations.add( String.format( "%d hours", hours ) );
+		if ( minutes != 0 ) prettyDurations.add( String.format( "%d minutes", minutes ) );
+		if ( seconds != 0 ) prettyDurations.add( String.format( "%d seconds", seconds ) );
+
+		// Combine all strings in the array & return it
+		return String.join( ",", prettyDurations );
+
 	}
 
 	/*public static void broadcastDiscordMessage( String author, String content ) {

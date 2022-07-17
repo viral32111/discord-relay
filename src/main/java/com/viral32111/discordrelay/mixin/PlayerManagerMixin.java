@@ -1,6 +1,7 @@
 package com.viral32111.discordrelay.mixin;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.viral32111.discordrelay.Config;
@@ -118,45 +119,67 @@ public class PlayerManagerMixin {
 		logEmbed.add( "thumbnail", logEmbedThumbnail );
 		logEmbed.add( "footer", logsEmbedFooter );
 
-		// Send the relay & log messages as embeds
+		// Send the relay message as an embed
 		API.ExecuteWebhook( Config.Get( "discord.webhook.relay", null ), relayEmbed, true );
-		API.ExecuteWebhook( Config.Get( "discord.webhook.log", null ), logEmbed, true );
+
+		// Send the log message as an embed, and after it has been created...
+		API.ExecuteWebhook( Config.Get( "discord.webhook.log", null ), logEmbed, true ).thenAccept( ( String messageId ) -> {
+
+			// Fetch useful information about the player's IP address (e.g. country, is VPN/proxy), but only if it is not a local address
+			if ( connectionAddress.isAnyLocalAddress() ) Utilities.HttpRequest( "GET", String.format( "https://proxycheck.io/v2/%s?vpn=3&asn=1&node=0&time=0&risk=1&port=0&seen=1", playerAddress ), Map.of( "Accept", "application/json" ), null ).thenAccept( ( HttpResponse<String> response ) -> {
+
+				// Error if the request was unsuccessful
+				if ( response.statusCode() < 200 || response.statusCode() > 299 ) throw new RuntimeException( String.format( "Proxycheck API request unsuccessful with code: %d", response.statusCode() ) );
+
+				// Store the content of the response, and error if it is empty
+				String responseBody = response.body();
+				if ( responseBody.length() <= 0 ) throw new RuntimeException( "Proxycheck API response has no body." );
+
+				JsonObject proxycheckResult = JsonParser.parseString( responseBody ).getAsJsonObject().getAsJsonObject( playerAddress );
+				String asNumber = proxycheckResult.get( "asn" ).getAsString();
+				String serviceProvider = proxycheckResult.get( "provider" ).getAsString();
+				String locationContinent = proxycheckResult.get( "continent" ).getAsString();
+				String locationCountry = proxycheckResult.get( "country" ).getAsString();
+				String locationCountryCode = proxycheckResult.get( "isocode" ).getAsString();
+				String locationRegion = proxycheckResult.get( "region" ).getAsString();
+				String locationRegionCode = proxycheckResult.get( "regioncode" ).getAsString();
+				String locationCity = proxycheckResult.get( "city" ).getAsString();
+				Double locationLatitude = proxycheckResult.get( "latitude" ).getAsDouble();
+				Double locationLongitude = proxycheckResult.get( "longitude" ).getAsDouble();
+				boolean isProxy = proxycheckResult.get( "proxy" ).getAsString().equals( "yes" );
+				boolean isVPN = proxycheckResult.get( "vpn" ).getAsString().equals( "yes" );
+				int riskPercentage = proxycheckResult.get( "risk" ).getAsInt();
+
+				Utilities.Log( "Internet Service Provider: {} ({})", serviceProvider, asNumber );
+				Utilities.Log( "Location: {}, {} ({}), {} ({}), {} [{}, {}]", locationCity, locationRegion, locationRegionCode, locationCountry, locationCountryCode, locationContinent, locationLatitude, locationLongitude );
+				Utilities.Log( "Proxy: {}, VPN: {} (Risk {}%)", isProxy, isVPN, riskPercentage );
+
+				for ( JsonElement element : logEmbed.get( "fields" ).getAsJsonArray() ) {
+					JsonObject field = element.getAsJsonObject();
+
+					if ( field.get( "name" ).getAsString().equals( "Location" ) ) {
+						field.addProperty( "value", String.format( "%s, %s", locationCity, locationCountry ) );
+
+					} else if ( field.get( "name" ).getAsString().equals( "Spoof" ) ) {
+						field.addProperty( "value", String.format( "VPN: %b, Proxy: %b (%d%% risk)", isVPN, isProxy, riskPercentage ) );
+					}
+				}
+
+				JsonArray logEmbeds = new JsonArray();
+				logEmbeds.add( logEmbed );
+
+				JsonObject logEmbedsPayload = new JsonObject();
+				logEmbedsPayload.add( "embeds", logEmbeds );
+				logEmbedsPayload.add( "allowed_mentions", API.AllowedMentions );
+
+				API.Request( "PATCH", String.format( "webhooks/%s/messages/%s", Config.Get( "discord.webhook.relay", null ), messageId ), logEmbedsPayload, null );
+
+			} );
+
+		} );
 
 		// Update the name of the category with the new number of active players
 		Utilities.UpdateCategoryStatus( String.format( "%d Playing", Objects.requireNonNull( player.getServer() ).getCurrentPlayerCount() ), "Player joined Minecraft Server." );
-
-		// Fetch useful information about the player's IP address (e.g. country, is VPN/proxy), but only if it is not a local address
-		if ( connectionAddress.isAnyLocalAddress() ) Utilities.HttpRequest( "GET", String.format( "https://proxycheck.io/v2/%s?vpn=3&asn=1&node=0&time=0&risk=1&port=0&seen=1", playerAddress ), Map.of( "Accept", "application/json" ), null ).thenAccept( ( HttpResponse<String> response ) -> {
-
-			// Error if the request was unsuccessful
-			if ( response.statusCode() < 200 || response.statusCode() > 299 ) throw new RuntimeException( String.format( "Proxycheck API request unsuccessful with code: %d", response.statusCode() ) );
-
-			// Store the content of the response, and error if it is empty
-			String responseBody = response.body();
-			if ( responseBody.length() <= 0 ) throw new RuntimeException( "Proxycheck API response has no body." );
-
-			JsonObject proxycheckResult = JsonParser.parseString( responseBody ).getAsJsonObject().getAsJsonObject( playerAddress );
-			String asNumber = proxycheckResult.get( "asn" ).getAsString();
-			String serviceProvider = proxycheckResult.get( "provider" ).getAsString();
-			String locationContinent = proxycheckResult.get( "continent" ).getAsString();
-			String locationCountry = proxycheckResult.get( "country" ).getAsString();
-			String locationCountryCode = proxycheckResult.get( "isocode" ).getAsString();
-			String locationRegion = proxycheckResult.get( "region" ).getAsString();
-			String locationRegionCode = proxycheckResult.get( "regioncode" ).getAsString();
-			String locationCity = proxycheckResult.get( "city" ).getAsString();
-			Double locationLatitude = proxycheckResult.get( "latitude" ).getAsDouble();
-			Double locationLongitude = proxycheckResult.get( "longitude" ).getAsDouble();
-			boolean isProxy = proxycheckResult.get( "proxy" ).getAsString().equals( "yes" );
-			boolean isVPN = proxycheckResult.get( "vpn" ).getAsString().equals( "yes" );
-			int riskPercentage = proxycheckResult.get( "risk" ).getAsInt();
-
-			Utilities.Log( "Internet Service Provider: {} ({})", serviceProvider, asNumber );
-			Utilities.Log( "Location: {}, {} ({}), {} ({}), {} [{}, {}]", locationCity, locationRegion, locationRegionCode, locationCountry, locationCountryCode, locationContinent, locationLatitude, locationLongitude );
-			Utilities.Log( "Proxy: {}, VPN: {} (Risk {}%)", isProxy, isVPN, riskPercentage );
-
-			// TODO: Edit log embed with new field, or postpone log message until we have this information?
-
-		} );
 
 	}
 
@@ -170,11 +193,10 @@ public class PlayerManagerMixin {
 		// Display message in the console
 		Utilities.Log( "Relaying leave message for player '{}'.", player.getName().getString() );
 
-		// Work out their session playtime
+		// Get out their session playtime
 		String sessionDuration = "Unknown";
 		if ( playerJoinTimes.containsKey( player.getUuid() ) ) { // This should never evaluate to false
-			long rawDuration = System.currentTimeMillis() - playerJoinTimes.get( player.getUuid() );
-			sessionDuration = String.format( "%d hours, %d minutes, %d seconds", TimeUnit.MILLISECONDS.toHours( rawDuration ), TimeUnit.MILLISECONDS.toMinutes( rawDuration ), TimeUnit.MILLISECONDS.toSeconds( rawDuration ) );
+			sessionDuration = Utilities.ToPrettyDuration( System.currentTimeMillis() - playerJoinTimes.get( player.getUuid() ), TimeUnit.MILLISECONDS );
 		}
 
 		// Create an embed for the relay message

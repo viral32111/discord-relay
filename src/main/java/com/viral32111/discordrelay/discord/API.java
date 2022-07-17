@@ -60,7 +60,10 @@ public class API {
 	}
 
 	// Helper to send a message to a webhook
-	public static void ExecuteWebhook( String identifierAndToken, JsonObject payload, boolean isEmbed ) {
+	public static CompletableFuture<String> ExecuteWebhook( String identifierAndToken, JsonObject payload, boolean isEmbed ) {
+
+		// Future to complete with the identifier of the newly created message
+		CompletableFuture<String> messageFuture = new CompletableFuture<>();
 
 		// Is the provided JSON object just an embed?
 		if ( isEmbed ) {
@@ -74,13 +77,22 @@ public class API {
 			embedsPayload.add( "embeds", embeds );
 			embedsPayload.add( "allowed_mentions", AllowedMentions );
 
-			// Execute the webhook with the wrapped embed payload
-			Request( "POST", String.format( "webhooks/%s", identifierAndToken ), embedsPayload, null );
+			// Update the parameter
+			payload = embedsPayload;
 
-		// Otherwise it must be an entire payload, so just send it as is
-		} else {
-			Request( "POST", String.format( "webhooks/%s", identifierAndToken ), payload, null );
 		}
+
+		// Execute the webhook with the (possibly embed wrapped) payload
+		// NOTE: The wait parameter makes the server not respond until the message is created
+		Request( "POST", String.format( "webhooks/%s?wait=true", identifierAndToken ), payload, null ).thenAccept( ( JsonObject response ) -> {
+
+			// Complete with the identifier of the newly created message
+			messageFuture.complete( response.get( "id" ).getAsString() );
+
+		} );
+
+		// Return the future
+		return messageFuture;
 
 	}
 

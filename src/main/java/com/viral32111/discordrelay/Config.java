@@ -100,6 +100,7 @@ public class Config {
 
 	// Creates a new example configuration, or adds missing keys to an existing configuration
 	// NOTE: An alternative way to do this would be with a version identifier in the configuration file
+	// TODO: Use the config.json resource instead
 	private static JsonObject PopulateWithExample( @Nullable JsonObject rootConfiguration ) {
 
 		// If no configuration was passed, then start with an empty one
