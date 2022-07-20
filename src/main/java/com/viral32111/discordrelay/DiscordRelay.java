@@ -85,7 +85,11 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		API.ExecuteWebhook( Config.Get( "discord.webhook.log", null ), logEmbed, true );
 
 		// Update the name of the category to indicate the server is now open with no players online
-		Utilities.UpdateCategoryStatus( "Empty", "Minecraft Server has started." );
+		try {
+			Utilities.UpdateCategoryStatus( "Empty", "Minecraft Server has started." );
+		} catch ( Exception exception ) {
+			Utilities.LOGGER.error( exception.getMessage() );
+		}
 
 	}
 
@@ -132,7 +136,11 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		API.ExecuteWebhook( Config.Get( "discord.webhook.log", null ), logEmbed, true );
 
 		// Update the name of the category to indicate the server is closed
-		Utilities.UpdateCategoryStatus( "Offline", "Minecraft Server has stopped." );
+		try {
+			Utilities.UpdateCategoryStatus( "Offline", "Minecraft Server has stopped." );
+		} catch ( Exception exception ) {
+			Utilities.LOGGER.error( exception.getMessage() );
+		}
 
 		// Gracefully disconnect from the gateway
 		Gateway.Stop();

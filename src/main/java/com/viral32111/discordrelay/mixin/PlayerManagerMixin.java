@@ -65,17 +65,17 @@ public class PlayerManagerMixin {
 		JsonObject logEmbedNameField = new JsonObject();
 		logEmbedNameField.addProperty( "name", "Name" );
 		logEmbedNameField.addProperty( "value", player.getName().getString() );
-		logEmbedNameField.addProperty( "inline", false );
+		logEmbedNameField.addProperty( "inline", true );
 
 		JsonObject logEmbedNickField = new JsonObject();
 		logEmbedNickField.addProperty( "name", "Nickname" );
-		logEmbedNickField.addProperty( "value", ( Utilities.PlayerHasNickname( player ) ? player.getDisplayName().getString() : "**No nickname set.**" ) );
+		logEmbedNickField.addProperty( "value", ( Utilities.PlayerHasNickname( player ) ? player.getDisplayName().getString() : "*No nickname set.*" ) );
 		logEmbedNickField.addProperty( "inline", true );
 
 		JsonObject logEmbedAddressField = new JsonObject();
 		logEmbedAddressField.addProperty( "name", "IP Address" );
 		logEmbedAddressField.addProperty( "value", String.format( "`%s`", playerAddress ) );
-		logEmbedAddressField.addProperty( "inline", false );
+		logEmbedAddressField.addProperty( "inline", true );
 
 		JsonObject logEmbedLocationField = new JsonObject();
 		logEmbedLocationField.addProperty( "name", "Location" );
@@ -150,9 +150,9 @@ public class PlayerManagerMixin {
 				boolean isVPN = proxycheckResult.get( "vpn" ).getAsString().equals( "yes" );
 				int riskPercentage = proxycheckResult.get( "risk" ).getAsInt();
 
-				Utilities.Log( "Internet Service Provider: {} ({})", serviceProvider, asNumber );
-				Utilities.Log( "Location: {}, {} ({}), {} ({}), {} [{}, {}]", locationCity, locationRegion, locationRegionCode, locationCountry, locationCountryCode, locationContinent, locationLatitude, locationLongitude );
-				Utilities.Log( "Proxy: {}, VPN: {} (Risk {}%)", isProxy, isVPN, riskPercentage );
+				Utilities.LOGGER.debug( "Internet Service Provider: {} ({})", serviceProvider, asNumber );
+				Utilities.LOGGER.debug( "Location: {}, {} ({}), {} ({}), {} [{}, {}]", locationCity, locationRegion, locationRegionCode, locationCountry, locationCountryCode, locationContinent, locationLatitude, locationLongitude );
+				Utilities.LOGGER.debug( "Proxy: {}, VPN: {} (Risk {}%)", isProxy, isVPN, riskPercentage );
 
 				for ( JsonElement element : logEmbed.get( "fields" ).getAsJsonArray() ) {
 					JsonObject field = element.getAsJsonObject();
@@ -179,8 +179,11 @@ public class PlayerManagerMixin {
 		} );
 
 		// Update the name of the category with the new number of active players
-		Utilities.UpdateCategoryStatus( String.format( "%d Playing", Objects.requireNonNull( player.getServer() ).getCurrentPlayerCount() ), "Player joined Minecraft Server." );
-
+		try {
+			Utilities.UpdateCategoryStatus( String.format( "%d Playing", Objects.requireNonNull( player.getServer() ).getCurrentPlayerCount() ), "Player joined Minecraft Server." );
+		} catch ( Exception exception ) {
+			Utilities.LOGGER.error( exception.getMessage() );
+		}
 	}
 
 	// Runs when a player leaves the server
@@ -193,8 +196,14 @@ public class PlayerManagerMixin {
 		// Display message in the console
 		Utilities.Log( "Relaying leave message for player '{}'.", player.getName().getString() );
 
-		// Get out their session playtime
-		String sessionDuration = "Unknown";
+		// Get their IP address
+		String ipAddress = "*Unknown*";
+		if ( playerAddresses.containsKey( player.getUuid() ) ) {
+			ipAddress = String.format( "`%s`", playerAddresses.get( player.getUuid() ) );
+		}
+
+		// Get their session playtime
+		String sessionDuration = "*Unknown*";
 		if ( playerJoinTimes.containsKey( player.getUuid() ) ) { // This should never evaluate to false
 			sessionDuration = Utilities.ToPrettyDuration( System.currentTimeMillis() - playerJoinTimes.get( player.getUuid() ), TimeUnit.MILLISECONDS );
 		}
@@ -211,31 +220,49 @@ public class PlayerManagerMixin {
 		relayEmbed.add( "author", relayEmbedAuthor );
 
 		// Create an embed for the log message
-		JsonObject logEmbedPlayerField = new JsonObject();
-		logEmbedPlayerField.addProperty( "name", "Name" );
-		logEmbedPlayerField.addProperty( "value", String.format( "[%s](%s)", Utilities.GetPlayerName( player ), Config.Get( "external.profile", Map.of( "uuid", player.getUuidAsString() ) ) ) );
-		logEmbedPlayerField.addProperty( "inline", true );
+		JsonObject logEmbedNameField = new JsonObject();
+		logEmbedNameField.addProperty( "name", "Name" );
+		logEmbedNameField.addProperty( "value", player.getName().getString() );
+		logEmbedNameField.addProperty( "inline", true );
 
-		JsonObject logEmbedIdentifierField = new JsonObject();
-		logEmbedIdentifierField.addProperty( "name", "UUID" );
-		logEmbedIdentifierField.addProperty( "value", String.format( "`%s`", player.getUuidAsString() ) );
-		logEmbedIdentifierField.addProperty( "inline", true );
+		JsonObject logEmbedNickField = new JsonObject();
+		logEmbedNickField.addProperty( "name", "Nickname" );
+		logEmbedNickField.addProperty( "value", ( Utilities.PlayerHasNickname( player ) ? player.getDisplayName().getString() : "*No nickname set.*" ) );
+		logEmbedNickField.addProperty( "inline", true );
 
 		JsonObject logEmbedAddressField = new JsonObject();
 		logEmbedAddressField.addProperty( "name", "IP Address" );
-		logEmbedAddressField.addProperty( "value", String.format( "`%s`", playerAddresses.getOrDefault( player.getUuid(), "Unknown" ) ) ); // Get the player's IP address from the dictionary
-		logEmbedAddressField.addProperty( "inline", true );
+		logEmbedAddressField.addProperty( "value", ipAddress );
+		logEmbedAddressField.addProperty( "inline", false );
+
+		JsonObject logEmbedLocationField = new JsonObject();
+		logEmbedLocationField.addProperty( "name", "Location" );
+		logEmbedLocationField.addProperty( "value", "London, United Kingdom" ); // TODO: This is an example
+		logEmbedLocationField.addProperty( "inline", true );
+
+		JsonObject logEmbedSpoofField = new JsonObject();
+		logEmbedSpoofField.addProperty( "name", "Spoof" );
+		logEmbedSpoofField.addProperty( "value", "VPN in use (50% risk)" ); // TODO: This is an example
+		logEmbedSpoofField.addProperty( "inline", true );
 
 		JsonObject logEmbedDurationField = new JsonObject();
 		logEmbedDurationField.addProperty( "name", "Session Duration" );
 		logEmbedDurationField.addProperty( "value", sessionDuration );
 		logEmbedDurationField.addProperty( "inline", true );
 
+		JsonObject logEmbedIdentifierField = new JsonObject();
+		logEmbedIdentifierField.addProperty( "name", "Unique Identifier (UUID)" );
+		logEmbedIdentifierField.addProperty( "value", String.format( "[`%s`](%s)", player.getUuidAsString(), Config.Get( "external.profile", Map.of( "uuid", player.getUuidAsString() ) ) ) );
+		logEmbedIdentifierField.addProperty( "inline", false );
+
 		JsonArray logEmbedFields = new JsonArray();
-		logEmbedFields.add( logEmbedPlayerField );
-		logEmbedFields.add( logEmbedIdentifierField );
+		logEmbedFields.add( logEmbedNameField );
+		logEmbedFields.add( logEmbedNickField );
 		logEmbedFields.add( logEmbedAddressField );
+		logEmbedFields.add( logEmbedLocationField );
+		logEmbedFields.add( logEmbedSpoofField );
 		logEmbedFields.add( logEmbedDurationField );
+		logEmbedFields.add( logEmbedIdentifierField );
 
 		JsonObject logEmbedThumbnail = new JsonObject();
 		logEmbedThumbnail.addProperty( "url", Config.Get( "external.face", Map.of( "uuid", player.getUuidAsString() ) ) );
@@ -255,8 +282,12 @@ public class PlayerManagerMixin {
 		API.ExecuteWebhook( Config.Get( "discord.webhook.log", null ), logEmbed, true );
 
 		// Update the name of the category with the new number of active players, or none
-		int playerCount = Objects.requireNonNull( player.getServer() ).getCurrentPlayerCount();
-		Utilities.UpdateCategoryStatus( ( playerCount > 0 ? String.format( "%d Playing", playerCount ) : "Empty" ), "Player left Minecraft Server." );
+		try {
+			int playerCount = Objects.requireNonNull( player.getServer() ).getCurrentPlayerCount();
+			Utilities.UpdateCategoryStatus( ( playerCount > 0 ? String.format( "%d Playing", playerCount ) : "Empty" ), "Player left Minecraft Server." );
+		} catch ( Exception exception ) {
+			Utilities.LOGGER.error( exception.getMessage() );
+		}
 
 		// Remove the player's IP address & login time from the dictionaries
 		playerAddresses.remove( player.getUuid() );

@@ -34,7 +34,7 @@ public class Utilities {
 	// Perform a HTTP request to a specified URL with a custom method, headers, and an optional body
 	public static CompletableFuture<HttpResponse<String>> HttpRequest( String method, String url, Map<String, String> headers, @Nullable String body ) {
 
-		Log( "'{}' to '{}' with {} bytes", method, url, ( body != null ? body.length() : 0 ) );
+		LOGGER.debug( "'{}' to '{}' with {} bytes", method, url, ( body != null ? body.length() : 0 ) );
 
 		// Create a new request builder
 		HttpRequest.Builder builder = HttpRequest.newBuilder();
@@ -119,7 +119,7 @@ public class Utilities {
 		if ( seconds != 0 ) prettyDurations.add( String.format( "%d seconds", seconds ) );
 
 		// Combine all strings in the array & return it
-		return String.join( ",", prettyDurations );
+		return String.join( ", ", prettyDurations );
 
 	}
 
@@ -128,7 +128,7 @@ public class Utilities {
 		Text b = Text.literal( author ).setStyle( Style.EMPTY.withColor( TextColor.parse( "green" ) ) );
 		Text c = Text.literal( String.format( ": %s", content ) ).setStyle( Style.EMPTY.withColor( TextColor.parse( "white" ) ) );
 		Text message = Text.literal( "" ).append( a ).append( b ).append( c );
-		Utilities.Log( message.getString() );
+		LOGGER.debug( message.getString() );
 
 		minecraftServer.getPlayerManager().broadcast( message, MessageType.SYSTEM );
 		//minecraftServer.getPlayerManager().broadcast( Text.of( String.format( "%s: %s", author, content ) ), MessageType.SYSTEM, Util.NIL_UUID );
