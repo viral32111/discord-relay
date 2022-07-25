@@ -21,6 +21,7 @@ public class API {
 	public static final JsonObject AllowedMentions = new JsonObject();
 
 	// Makes an asynchronous request to the API
+	// TODO: Implement rate-limiting
 	public static CompletableFuture<JsonObject> Request( String method, String endpoint, @Nullable JsonObject data, @Nullable String auditLogReason ) {
 
 		// Create a future to return then complete later on
@@ -44,7 +45,7 @@ public class API {
 			String reset = String.join( ", ", responseHeaders.getOrDefault( "X-RateLimit-Reset", List.of( "Unknown" ) ) );
 			String resetAfter = String.join( ", ", responseHeaders.getOrDefault( "X-RateLimit-Reset-After", List.of( "Unknown" ) ) );
 			String bucket = String.join( ", ", responseHeaders.getOrDefault( "X-RateLimit-Bucket", List.of( "Unknown" ) ) );
-			Utilities.LOGGER.debug( "Rate-limit for '{}' '{}': [ Limit: {}, Remaining: {}, Reset: {}, Reset After: {}, Bucket: {} ]", method, endpoint, limit, remaining, reset, resetAfter, bucket );
+			Utilities.Debug( "Rate-limit for '{}' '{}': [ Limit: {}, Remaining: {}, Reset: {}, Reset After: {}, Bucket: {} ]", method, endpoint, limit, remaining, reset, resetAfter, bucket );
 
 			// Error if the request was unsuccessful
 			if ( response.statusCode() < 200 || response.statusCode() > 299 ) {
@@ -53,7 +54,7 @@ public class API {
 				if ( response.statusCode() == 429 ) {
 					String global = String.join( ", ", responseHeaders.getOrDefault( "X-RateLimit-Global", List.of( "Unknown" ) ) );
 					String scope = String.join( ", ", responseHeaders.getOrDefault( "X-RateLimit-Scope", List.of( "Unknown" ) ) );
-					Utilities.LOGGER.debug( "Hit rate-limit for '{}' '{}'! [ Global: {}, Scope: {} ]", method, endpoint, global, scope );
+					Utilities.Debug( "Hit rate-limit for '{}' '{}'! [ Global: {}, Scope: {} ]", method, endpoint, global, scope );
 
 				} else {
 					future.completeExceptionally( new Exception( String.format( "Discord API request unsuccessful with code: %d", response.statusCode() ) ) );

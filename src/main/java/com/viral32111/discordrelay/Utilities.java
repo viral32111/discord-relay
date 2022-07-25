@@ -2,7 +2,12 @@ package com.viral32111.discordrelay;
 
 import com.google.gson.JsonObject;
 import com.viral32111.discordrelay.discord.API;
+import net.minecraft.network.message.MessageType;
+import net.minecraft.server.PlayerManager;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.Style;
+import net.minecraft.text.Text;
+import net.minecraft.text.TextColor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -31,10 +36,13 @@ public class Utilities {
 	// NOTE: The name used here is the same as the Mod Identifier in the Fabric configuration file
 	public static final Logger LOGGER = LogManager.getLogger( "discordrelay" );
 
+	// An instance of the player manager of a Minecraft server, set in the main class
+	public static PlayerManager playerManager = null;
+
 	// Perform a HTTP request to a specified URL with a custom method, headers, and an optional body
 	public static CompletableFuture<HttpResponse<String>> HttpRequest( String method, String url, Map<String, String> headers, @Nullable String body ) {
 
-		LOGGER.debug( "'{}' to '{}' with {} bytes", method, url, ( body != null ? body.length() : 0 ) );
+		Debug( "'{}' to '{}' with {} bytes", method, url, ( body != null ? body.length() : 0 ) );
 
 		// Create a new request builder
 		HttpRequest.Builder builder = HttpRequest.newBuilder();
@@ -96,10 +104,21 @@ public class Utilities {
 
 	}
 
-	// Helper to display a message in the console with a prefix to identify the message is from this mod
-	// TODO: This but for warnings, errors & debug
+	// Helpers to display a message in the console with a prefix to identify the message is from this mod
 	public static void Log( String message, Object... params ) {
 		LOGGER.info( String.format( "[Discord Relay] %s", message ), params );
+	}
+	public static void Debug( String message, Object... params ) {
+		LOGGER.info( String.format( "[Discord Relay] %s", message ), params );
+	}
+	public static void Warn( String message, Object... params ) {
+		LOGGER.warn( String.format( "[Discord Relay] %s", message ), params );
+	}
+	public static void Error( String message, Object... params ) {
+		LOGGER.error( String.format( "[Discord Relay] %s", message ), params );
+	}
+	public static void Error( Throwable exception ) {
+		LOGGER.error( String.format( "[Discord Relay] %s", exception.getMessage() ) );
 	}
 
 	// Helper to convert a unit of time (e.g. seconds, milliseconds) to a pretty duration string (x hours, x minutes, x seconds)
@@ -123,16 +142,19 @@ public class Utilities {
 
 	}
 
-	/*public static void broadcastDiscordMessage( String author, String content ) {
-		Text a = Text.literal( "(Discord) " ).setStyle( Style.EMPTY.withColor( TextColor.parse( "blue" ) ) );
-		Text b = Text.literal( author ).setStyle( Style.EMPTY.withColor( TextColor.parse( "green" ) ) );
-		Text c = Text.literal( String.format( ": %s", content ) ).setStyle( Style.EMPTY.withColor( TextColor.parse( "white" ) ) );
-		Text message = Text.literal( "" ).append( a ).append( b ).append( c );
-		LOGGER.debug( message.getString() );
+	// Sends a Discord message in chat as a game message
+	public static void BroadcastDiscordMessage( String authorName, String messageContent ) throws Exception {
 
-		minecraftServer.getPlayerManager().broadcast( message, MessageType.SYSTEM );
-		//minecraftServer.getPlayerManager().broadcast( Text.of( String.format( "%s: %s", author, content ) ), MessageType.SYSTEM, Util.NIL_UUID );
-	}*/
+		if ( playerManager == null ) throw new Exception( "Player manager not initialised" );
+
+		Text discordMessage = Text.literal( "" )
+			.append( Text.literal( "(Discord) " ).setStyle( Style.EMPTY.withColor( TextColor.parse( "blue" ) ) ) )
+			.append( Text.literal( authorName ).setStyle( Style.EMPTY.withColor( TextColor.parse( "white" ) ) ) )
+			.append( Text.literal( String.format( ": %s", messageContent ) ).setStyle( Style.EMPTY.withColor( TextColor.parse( "white" ) ) ) );
+
+		playerManager.broadcast( discordMessage, MessageType.SYSTEM ); // System messages do not need to be signed
+
+	}
 
 	/*public static String capitalise( String original ) {
 		return original.substring( 0, 1 ).toUpperCase().concat( original.substring( 1 ) );
@@ -154,4 +176,5 @@ public class Utilities {
 
 		return original;
 	}*/
+
 }

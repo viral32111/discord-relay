@@ -15,9 +15,11 @@ import java.util.concurrent.*;
 // Client for the Discord Gateway
 public class Gateway implements WebSocket.Listener {
 
-	// Future that completes when the websocket connection closes, used for reconnecting
-	// NOTE: Completion type is any as there is no need to complete this with data
-	private static CompletableFuture<?> connectionClosedFuture = null;
+	// The underlying websocket connection, used for stopping
+	private static WebSocket webSocket = null;
+
+	// Future that completes when the websocket connection closes, used for reconnecting depending on the boolean
+	private static CompletableFuture<Boolean> connectionClosedFuture = null;
 
 	// Compression should not be used, it is not implemented in this class
 	private static final boolean USE_COMPRESSION = false;
@@ -31,10 +33,6 @@ public class Gateway implements WebSocket.Listener {
 	// The futures for heartbeating
 	private CompletableFuture<?> heartbeatFuture = null;
 	private CompletableFuture<?> heartbeatAcknowledgementFuture = null;
-
-	// Used to gracefully disconnect
-	private static WebSocket webSocketConnection = null;
-	private static boolean doNotReconnect = false;
 
 	// Starts the initial connection to the gateway
 	public static void Start() {
@@ -52,23 +50,22 @@ public class Gateway implements WebSocket.Listener {
 
 	}
 
-	public static void Stop() {
-		if ( webSocketConnection == null || webSocketConnection.isInputClosed() || webSocketConnection.isOutputClosed() ) throw new RuntimeException( "Cannot disconnect websocket that is not connected" );
+	public static void Stop() throws Exception {
 
-		Utilities.LOGGER.debug( "Closing the websocket..." );
-		doNotReconnect = true;
-		webSocketConnection.sendClose( 1000, "Goodbye" );
+		if ( webSocket == null ) throw new Exception( "Underlying websocket connection not initialised" );
+
+		webSocket.sendClose( 1000, "Goodbye" );
+
 	}
 
 	// Connects to a websocket server, and reconnects whenever the close future completes
 	private static void Connect( URI url, Gateway listener ) {
-		Utilities.LOGGER.debug( "Connect() called" );
 
 		// Create the future for closing
 		connectionClosedFuture = new CompletableFuture<>();
 
 		// Asynchronously connect to the gateway, using the provided URL and options from the configuration
-		Utilities.HTTP_CLIENT.newWebSocketBuilder()
+		CompletableFuture<WebSocket> webSocketConnectFuture = Utilities.HTTP_CLIENT.newWebSocketBuilder()
 
 			// Additional headers in the upgrade request
 			.header( "User-Agent", Config.Get( "http.user-agent", null ) )
@@ -80,14 +77,12 @@ public class Gateway implements WebSocket.Listener {
 			// URL and listener instance of this class
 			.buildAsync( url, listener );
 
+		// Update the websocket property with the new websocket instance
+		webSocketConnectFuture.thenAccept( ( ws ) -> webSocket = ws );
+
 		// Reconnect to the same URL and with the same listener instance whenever the future completes
-		connectionClosedFuture.thenAccept( ( $ ) -> {
-			if ( !doNotReconnect ) {
-				Utilities.LOGGER.debug( "Reconnecting..." );
-				Connect( url, listener );
-			} else {
-				Utilities.LOGGER.debug( "Not reconnecting, this is the end" );
-			}
+		connectionClosedFuture.thenAccept( ( shouldReconnect ) -> {
+			if ( shouldReconnect ) Connect( url, listener );
 		} );
 
 	}
@@ -97,114 +92,81 @@ public class Gateway implements WebSocket.Listener {
 		return !( webSocket.isInputClosed() || webSocket.isOutputClosed() );
 	}
 
-	/*private void Send( WebSocket webSocket, int operationCode, @Nullable JsonElement data ) {
-
-		try {
-			JsonObject payload = new JsonObject();
-			payload.addProperty( "op", operationCode );
-			payload.add( "d", data );
-
-			Utilities.LOGGER.debug( "Sending: {}", payload.toString() );
-
-			//webSocket.sendText( payload.toString(), true );
-		} catch ( Exception exception ) {
-			exception.printStackTrace();
-		}
-
-	}*/
-
 	private void SendHeartbeat( WebSocket webSocket ) {
 
 		heartbeatAcknowledgementFuture = new CompletableFuture<>();
 
 		try {
-			Utilities.LOGGER.debug( "Sending heartbeat with sequence number: {}...", sequenceNumber );
-			//this.Send( webSocket, OperationCode.Heartbeat, new JsonPrimitive( this.sequenceNumber ) );
-
 			JsonObject heartbeatPayload = new JsonObject();
 			heartbeatPayload.addProperty( "op", OperationCode.Heartbeat );
 			heartbeatPayload.addProperty( "d", this.sequenceNumber );
 
-			Utilities.LOGGER.debug( "Sending: {}", heartbeatPayload.toString() );
 			webSocket.sendText( heartbeatPayload.toString(), true );
-		} catch ( Exception exception ) {
-			exception.printStackTrace();
-		}
 
-		Utilities.LOGGER.debug( "Registered heartbeat acknowledgement callback" );
-		heartbeatAcknowledgementFuture.thenAccept( ( $ ) -> {
-			Utilities.LOGGER.debug( "Received heartbeat acknowledgement" );
-		} );
+		} catch ( Exception exception ) {
+			Utilities.Error( exception );
+			webSocket.sendClose( 1002, "Internal error" );
+		}
 
 		try {
-			Utilities.LOGGER.debug( "Waiting for heartbeat acknowledgement, or timing out..." );
 			heartbeatAcknowledgementFuture.orTimeout( 5, TimeUnit.SECONDS ).get();
-		} catch ( InterruptedException exception ) {
-			Utilities.LOGGER.debug( "Heartbeat acknowledgement future interrupted! ({})", exception.getMessage() );
-		} catch ( ExecutionException exception ) {
-			Utilities.LOGGER.debug( "Heartbeat acknowledgement future completed exceptionally! ({})", exception.getMessage() );
-			webSocket.sendClose( 1000, "Never received heartbeat acknowledgement" );
-		} catch ( CancellationException exception ) {
-			Utilities.LOGGER.debug( "Heartbeat acknowledgement future cancelled! ({})", exception.getMessage() );
-		} catch ( Exception exception ) {
-			exception.printStackTrace();
-		}
 
-		/*Utilities.LOGGER.debug( "Waiting to receive heartbeat acknowledgement, or dying after 5 seconds..." );
-		heartbeatAcknowledgementFuture.orTimeout( 5, TimeUnit.SECONDS ).thenAccept( ( $ ) -> {
-			Utilities.LOGGER.debug( "Received heartbeat acknowledgement within 5 seconds" );
-		} ).exceptionally( ( exception ) -> {
-			Utilities.LOGGER.warn( "Never received heartbeat acknowledgement" );
-			webSocket.sendClose( 1000, "Never received heartbeat acknowledgement" );
-			return null;
-		} );*/
+		} catch ( ExecutionException exception ) {
+			Utilities.Error( "Heartbeat acknowledgement timeout: '{}'.", exception.getMessage() );
+			webSocket.sendClose( 1002, "Never received heartbeat acknowledgement" );
+
+		} catch ( InterruptedException exception ) {
+			Utilities.Error( "Heartbeat acknowledgement interrupted: '{}'.", exception.getMessage() );
+
+		} catch ( CancellationException exception ) {
+			Utilities.Error( "Heartbeat acknowledgement cancelled: '{}'.", exception.getMessage() );
+
+		} catch ( Exception exception ) {
+			Utilities.Error( exception );
+			webSocket.sendClose( 1002, "Internal error" );
+		}
 
 	}
 
 	private void StartHeartbeating( WebSocket webSocket, int interval ) {
 
-		Utilities.LOGGER.debug( "Started heartbeating every {} ms...", interval );
+		Utilities.Log( "Started heartbeating every {} seconds.", interval / 1000.0 );
 
 		boolean sentInitialBeat = false;
 
 		while ( IsConnected( webSocket ) && !heartbeatFuture.isCancelled() ) {
 
 			try {
-				Utilities.LOGGER.debug( "Waiting interval {} ms...", interval );
-
 				if ( !sentInitialBeat ) {
 					long initialInterval = Math.round( interval * Math.random() );
-
-					Utilities.LOGGER.debug( "Initial heartbeat of {} ms", initialInterval );
 
 					//noinspection BusyWait
 					Thread.sleep( initialInterval );
 					sentInitialBeat = true;
 
 				} else {
-					Utilities.LOGGER.debug( "Regular heartbeat of {} ms", interval );
-
 					//noinspection BusyWait
 					Thread.sleep( interval );
 				}
 
 			} catch ( InterruptedException exception ) {
-				Utilities.LOGGER.debug( "Wait heartbeat interval interrupted! ({})", exception.getMessage() );
+				Utilities.Error( "Heartbeating interrupted: '%s'", exception.getMessage() );
+
+			} catch ( CancellationException exception ) {
+				Utilities.Error( "Heartbeating cancelled: '{}'.", exception.getMessage() );
+
 			} catch ( Exception exception ) {
-				exception.printStackTrace();
+				Utilities.Error( exception );
+				webSocket.sendClose( 1002, "Internal error" );
 			}
 
-			Utilities.LOGGER.debug( "Interval waited, checking if should still run..." );
 			if ( !IsConnected( webSocket ) || heartbeatFuture.isCancelled() ) break;
 
-			Utilities.LOGGER.debug( "Sending periodic heartbeat..." );
 			this.SendHeartbeat( webSocket );
-
-			Utilities.LOGGER.debug( "Should loop still run: {}, {}", IsConnected( webSocket ), !heartbeatFuture.isCancelled() );
 
 		}
 
-		Utilities.LOGGER.debug( "Finished heartbeating." );
+		Utilities.Log( "Finished heartbeating." );
 
 	}
 
@@ -212,9 +174,7 @@ public class Gateway implements WebSocket.Listener {
 	@Override
 	public void onOpen( WebSocket webSocket ) {
 
-		Utilities.LOGGER.debug( "Gateway connection opened." );
-
-		webSocketConnection = webSocket;
+		Utilities.Log( "Gateway connection opened." );
 
 		// Run default action
 		WebSocket.Listener.super.onOpen( webSocket );
@@ -225,37 +185,25 @@ public class Gateway implements WebSocket.Listener {
 	@Override
 	public CompletionStage<?> onClose( WebSocket webSocket, int code, String reason ) {
 
-		Utilities.LOGGER.debug( "Gateway connection closed: {} ({}).", code, reason );
+		Utilities.Log( "Gateway connection closed. ({}, '{}').", code, reason );
 
 		// Stop heartbeating
 		try {
-			if ( this.heartbeatFuture != null ) {
-				Utilities.LOGGER.debug( "Cancelling heartbeat future..." );
-				this.heartbeatFuture.cancel( true );
-			}
+			if ( this.heartbeatFuture != null ) this.heartbeatFuture.cancel( true );
+			if ( this.heartbeatAcknowledgementFuture != null ) this.heartbeatAcknowledgementFuture.cancel( true );
 
-			if ( this.heartbeatAcknowledgementFuture != null ) {
-				Utilities.LOGGER.debug( "Cancelling heartbeat acknowledgement future..." );
-				this.heartbeatAcknowledgementFuture.cancel( true );
-			}
+			if ( this.heartbeatFuture != null ) this.heartbeatFuture.join();
+			if ( this.heartbeatAcknowledgementFuture != null ) this.heartbeatAcknowledgementFuture.join();
 
-			if ( this.heartbeatFuture != null ) {
-				Utilities.LOGGER.debug( "Waiting for heartbeat future..." );
-				this.heartbeatFuture.join();
-			}
-
-			if ( this.heartbeatAcknowledgementFuture != null ) {
-				Utilities.LOGGER.debug( "Waiting for heartbeat acknowledgement future..." );
-				this.heartbeatAcknowledgementFuture.join();
-			}
 		} catch ( CancellationException exception ) {
-			Utilities.LOGGER.debug( "Cancellation exception while cancelling/waiting heartbeat futures! ({})", exception.getMessage() );
-		} catch ( CompletionException exception ) {
-			Utilities.LOGGER.debug( "Completion exception while cancelling/waiting heartbeat futures! ({})", exception.getMessage() );
-		} catch ( Exception exception ) {
-			exception.printStackTrace();
-		}
+			Utilities.Error( "Cancel heartbeating cancelled: '{}'", exception.getMessage() );
 
+		} catch ( CompletionException exception ) {
+			Utilities.Error( "Cancel heartbeating exception: '{}'", exception.getMessage() );
+
+		} catch ( Exception exception ) {
+			Utilities.Error( exception );
+		}
 
 		// Cleanup for the next run
 		this.messageFragments.clear();
@@ -264,8 +212,7 @@ public class Gateway implements WebSocket.Listener {
 		this.heartbeatAcknowledgementFuture = null;
 
 		// Complete the future to indicate the connection is now closed
-		Utilities.LOGGER.debug( "Completing connection close future..." );
-		connectionClosedFuture.complete( null );
+		connectionClosedFuture.complete( code != 1000 );
 
 		// Return default action
 		return WebSocket.Listener.super.onClose( webSocket, code, reason );
@@ -288,15 +235,18 @@ public class Gateway implements WebSocket.Listener {
 
 			// Parse the message as JSON
 			JsonObject payload = JsonParser.parseString( message ).getAsJsonObject();
-			Utilities.LOGGER.debug( "Gateway said: '{}'", payload.toString() );
 
 			// Error if an opcode was not included
-			if ( payload.get( "op" ).isJsonNull() ) throw new RuntimeException( "Gateway payload operation code is invalid" );
+			if ( payload.get( "op" ).isJsonNull() ) {
+				Utilities.Error( "Gateway payload operation code is invalid." );
+				webSocket.sendClose( 1002, "Received invalid operation code" );
+				return null;
+			}
 
 			// Update the sequence number if one is included
 			if ( payload.has( "s" ) && !payload.get( "s" ).isJsonNull() ) this.sequenceNumber = payload.get( "s" ).getAsInt();
 
-			// Store the opcode in the payload for easy access
+			// Get the operation code from the payload
 			int operationCode = payload.get( "op" ).getAsInt();
 
 			// If this is the initial welcome message...
@@ -306,49 +256,98 @@ public class Gateway implements WebSocket.Listener {
 				int interval = payload.getAsJsonObject( "d" ).get( "heartbeat_interval" ).getAsInt();
 				this.heartbeatFuture = CompletableFuture.runAsync( () -> this.StartHeartbeating( webSocket, interval ) );
 
-				// Create an identify payload
+				// Create the identify payload
 				JsonObject identifyProperties = new JsonObject();
 				identifyProperties.addProperty( "os", System.getProperty( "os.name" ) );
 				identifyProperties.addProperty( "browser", Config.Get( "discord.library", null ) );
 				identifyProperties.addProperty( "device", Config.Get( "discord.library", null ) );
 
+				JsonObject identifyData = new JsonObject();
+				identifyData.addProperty( "token", Config.Get( "discord.token", null ) );
+				identifyData.addProperty( "intents", 1 << 9 | 1 << 15 ); // GUILD_MESSAGES and MESSAGE_CONTENT
+				identifyData.addProperty( "large_threshold", 250 );
+				identifyData.addProperty( "compress", USE_COMPRESSION );
+				identifyData.add( "properties", identifyProperties );
+
 				JsonObject identifyPayload = new JsonObject();
-				identifyPayload.addProperty( "token", Config.Get( "discord.token", null ) );
-				identifyPayload.addProperty( "intents", 1 << 9 ); // GUILD_MESSAGES
-				identifyPayload.addProperty( "large_threshold", 250 );
-				identifyPayload.addProperty( "compress", USE_COMPRESSION );
-				identifyPayload.add( "properties", identifyProperties );
+				identifyPayload.addProperty( "op", OperationCode.Identify );
+				identifyPayload.add( "d", identifyData );
 
 				// Send the identify payload
-				//this.Send( webSocket, OperationCode.Identify, identifyPayload );
+				webSocket.sendText( identifyPayload.toString(), true );
 
 			} else if ( operationCode == OperationCode.HeartbeatAcknowledgement ) {
-				Utilities.LOGGER.debug( "Got heartbeat ack opcode" );
-				if ( this.heartbeatAcknowledgementFuture == null ) throw new RuntimeException( "Not ready for heartbeat acknowledgement" );
+				if ( this.heartbeatAcknowledgementFuture == null ) {
+					Utilities.Error( "Not ready for heartbeat acknowledgement" );
+					webSocket.sendClose( 1002, "Received heartbeat acknowledgement too early" );
+					return null;
+				}
+
 				this.heartbeatAcknowledgementFuture.complete( null );
 
 			// Send a heartbeat if the gateway requests it
 			} else if ( operationCode == OperationCode.Heartbeat ) {
-				Utilities.LOGGER.debug( "Heartbeat requested" );
 				this.SendHeartbeat( webSocket );
 
-			} else if ( operationCode == OperationCode.Dispatch && ( payload.has( "t" ) && !payload.get( "t" ).isJsonNull() ) && ( payload.has( "d" ) && !payload.get( "d" ).isJsonNull() ) ) {
-				Utilities.LOGGER.debug( "Event dispatch..." );
+			} else if ( operationCode == OperationCode.InvalidSession ) {
+				Utilities.Error( "The session is invalid." );
+				webSocket.sendClose( 1002, "Session reported as invalid" );
 
-				if ( payload.get( "t" ).getAsString().equals( "READY" ) ) {
-					//Utilities.LOGGER.debug( "We are ready! {}", payload.getAsJsonObject( "d ").getAsJsonObject( "user" ).get( "username" ).getAsString() );
+			} else if ( operationCode == OperationCode.Reconnect ) {
+				Utilities.Log( "Gateway requested reconnect." );
+				webSocket.sendClose( 1000, "Reconnect requested" );
+
+			} else if ( operationCode == OperationCode.Dispatch && ( payload.has( "t" ) && payload.get( "t" ).isJsonPrimitive() ) && ( payload.has( "d" ) && payload.get( "d" ).isJsonObject() ) ) {
+
+				String eventName = payload.get( "t" ).getAsString();
+				JsonObject eventData = payload.getAsJsonObject( "d" );
+
+				if ( eventName.equals( "READY" ) ) {
+					JsonObject user = eventData.getAsJsonObject( "user" );
+					String userName = user.get( "username" ).getAsString();
+					Integer userTag = user.get( "discriminator" ).getAsInt();
+					String userId = user.get( "id" ).getAsString();
+
+					Utilities.Log( "Ready as '{}#{}' ({})", userName, userTag, userId );
+
+				} else if ( eventName.equals( "MESSAGE_CREATE" ) ) {
+					String messageContent = eventData.get( "content" ).getAsString();
+					String messageId = eventData.get( "id" ).getAsString();
+					boolean isWebhook = eventData.has( "webhook_id" );
+					String channelId = eventData.get( "channel_id" ).getAsString();
+
+					if ( !isWebhook ) {
+
+						JsonObject messageAuthor = eventData.getAsJsonObject( "author" );
+						String authorName = messageAuthor.get( "username" ).getAsString();
+						Integer authorTag = messageAuthor.get( "discriminator" ).getAsInt();
+						String authorId = messageAuthor.get( "id" ).getAsString();
+						boolean authorIsBot = ( messageAuthor.has( "bot" ) && messageAuthor.get( "bot" ).getAsBoolean() );
+						boolean authorIsSystem = ( messageAuthor.has( "system" ) && messageAuthor.get( "system" ).getAsBoolean() );
+
+						if ( channelId.equals( Config.Get( "discord.channel.relay", null ) ) && messageContent.length() > 0 && !authorIsBot && !authorIsSystem ) {
+
+							Utilities.Log( "Relaying Discord message '{}' ({}) from user '{}#{}' ({}).", messageContent, messageId, authorName, authorTag, authorId );
+
+							try {
+								Utilities.BroadcastDiscordMessage( authorName, messageContent );
+
+							} catch ( Exception exception ) {
+								Utilities.Error( exception );
+								webSocket.sendClose( 1002, "Internal error" );
+							}
+
+						}
+
+					}
 
 				} else {
-					Utilities.LOGGER.warn( "Unknown event dispatch: '{}'", payload.get( "t" ).getAsString() );
+					Utilities.Warn( "Unrecognised dispatch event: '{}'.", eventName );
 				}
-
-
-			// TODO: Invalid Session
-			// TODO: Reconnect
 
 			// Unknown operation code?
 			} else {
-				Utilities.LOGGER.warn( "Unknown gateway operation code: '{}'", operationCode );
+				Utilities.Warn( "Unrecognised gateway operation code: '{}'.", operationCode );
 			}
 
 		}
@@ -360,129 +359,13 @@ public class Gateway implements WebSocket.Listener {
 
 	// Runs when an error occurs on the websocket
 	@Override
-	public void onError( WebSocket webSocket, Throwable error ) {
+	public void onError( WebSocket webSocket, Throwable exception ) {
 
-		Utilities.LOGGER.error( error.getMessage() );
+		Utilities.Error( "Gateway connection error: '{}'.", exception.getMessage() );
 
 		// Run default action
-		WebSocket.Listener.super.onError( webSocket, error );
+		WebSocket.Listener.super.onError( webSocket, exception );
 
 	}
-
-	/*
-	public CompletionStage<?> onText( WebSocket webSocket, CharSequence messageFragment, boolean isLastMessage ) {
-		//DiscordRelay.logger.info( "onText() -> '{}' | {}", messageFragment, isLastMessage );
-
-		receivedTextSequences.add( messageFragment );
-
-		if ( isLastMessage ) {
-			String message = String.join( "", receivedTextSequences );
-			receivedTextSequences.clear();
-
-			JsonObject payload = JsonParser.parseString( message ).getAsJsonObject();
-			//DiscordRelay.logger.info( payload.toString() );
-
-			if ( !payload.get( "op" ).isJsonNull() ) {
-				int operationCode = payload.get( "op" ).getAsInt();
-				//var sequenceNumber = payload.get( "s" ); // Should be an integer, but can be null
-				//String eventType = payload.get( "t" ).getAsString(); // Could be null
-				//var eventData = payload.get( "d" ); // Possibly don't know the type, could even be null
-
-				if ( !payload.get( "s" ).isJsonNull() ) {
-					latestSequenceNumber =  payload.get( "s" ).getAsInt();
-					//DiscordRelay.logger.info( "Sequence number updated to {}", latestSequenceNumber );
-				} /*else {
-					DiscordRelay.logger.warn( "sequence number is null?" );
-				}*/
-
-				/*if ( operationCode == 10 ) {
-					DiscordRelay.logger.info( "Received hello!" );
-
-					if ( !payload.get( "d" ).isJsonNull() ) {
-						heartbeatInterval = payload.get( "d" ).getAsJsonObject().get( "heartbeat_interval" ).getAsInt();
-						DiscordRelay.logger.info( "Heartbeat interval is {}", heartbeatInterval );
-
-						heartbeater = CompletableFuture.runAsync( this::startHeartbeating );
-
-						DiscordRelay.logger.info( "We should identify now..." );
-
-						JsonObject identifyDataProperties = new JsonObject();
-						identifyDataProperties.addProperty( "$os", Objects.requireNonNull( Config.Get( "http.user-agent" ) ) );
-						identifyDataProperties.addProperty( "$browser", Objects.requireNonNull( Config.Get( "http.user-agent" ) ) );
-						identifyDataProperties.addProperty( "$device", Objects.requireNonNull( Config.Get( "http.user-agent" ) ) );
-
-						JsonObject identifyDataPresence = new JsonObject();
-						identifyDataPresence.addProperty( "status", "offline" );
-
-						JsonObject identifyData = new JsonObject();
-						identifyData.addProperty( "token", Objects.requireNonNull( Config.Get( "discord.token" ) ) );
-						identifyData.addProperty( "intents", ( 1 << 9 ) ); // Server Messages
-						identifyData.add( "properties", identifyDataProperties );
-
-						JsonObject identifyPayload = new JsonObject();
-						identifyPayload.addProperty( "op", 2 );
-						identifyPayload.add( "d", identifyData );
-
-						myself.sendText( identifyPayload.toString(), true );
-					} else {
-						DiscordRelay.logger.warn( "The event data is null?" );
-					}
-				} else if ( operationCode == 11 ) {
-					DiscordRelay.logger.info( "Received heartbeat acknowledgement!" );
-				} else if ( operationCode == 1 ) {
-					DiscordRelay.logger.info( "Gateway wants to know if we're still here :o" );
-
-					JsonObject heartbeatPayload = new JsonObject();
-					heartbeatPayload.addProperty( "op", 1 );
-					heartbeatPayload.addProperty( "d", latestSequenceNumber );
-					myself.sendText(heartbeatPayload.toString(), true);
-				} else if ( operationCode == 0 ) {
-					if ( !payload.get( "t" ).isJsonNull() || !payload.get( "d" ).isJsonNull() ) {
-						String type = payload.get( "t" ).getAsString();
-						JsonObject data = payload.get( "d" ).getAsJsonObject();
-
-						//DiscordRelay.logger.info( "Received event dispatch for: {}", type );
-
-						if ( type.equals( "READY" ) ) {
-							DiscordRelay.logger.info( "Connected as '{}#{}' ({})", data.get( "user" ).getAsJsonObject().get( "username" ).getAsString(), data.get( "user" ).getAsJsonObject().get( "discriminator" ).getAsInt(), data.get( "user" ).getAsJsonObject().get( "id" ).getAsString() );
-
-						} else if ( type.equals( "MESSAGE_CREATE" ) ) {
-							String channelID = data.get( "channel_id" ).getAsString();
-
-							if ( channelID.equals( Objects.requireNonNull( Config.Get( "discord.channel.relay" ) ) ) && data.get( "webhook_id" ) == null ) {
-								JsonObject author = data.get( "author" ).getAsJsonObject();
-								String authorName = author.get( "username" ).getAsString();
-
-								JsonObject member = data.get( "member" ).getAsJsonObject();
-
-								if ( member.has( "nick" ) && !member.get( "nick" ).isJsonNull() ) authorName = member.get( "nick" ).getAsString();
-
-								String content = data.get( "content" ).getAsString();
-								if ( !content.equals( "" ) ) {
-									//DiscordRelay.logger.info( "Received relayed Discord message '{}' from '{}'!", content, authorName );
-
-									DiscordRelay.broadcastDiscordMessage( authorName, content );
-								}
-
-								//DiscordRelay.executeServerCommand( String.format( "tellraw @a [{\"text\":\"(Discord) \",\"color\":\"blue\"},{\"text\":\"%s\",\"color\":\"green\"},{\"text\":\": %s\",\"color\":\"white\"}]", username, content ) );
-							} else {
-								DiscordRelay.logger.warn( "Ignoring message for channel {}.", channelID );
-							}
-						} else {
-							DiscordRelay.logger.warn( "Ignoring event dispatch for {}.", type );
-						}
-					} else {
-						DiscordRelay.logger.warn( "The event type and/or data is null?" );
-					}
-				} else {
-					DiscordRelay.logger.warn( "Ignoring operation code {}.", operationCode );
-				}
-			} else {
-				DiscordRelay.logger.warn( "The operation code is null?" );
-			}
-		}
-
-		return WebSocket.Listener.super.onText( webSocket, messageFragment, isLastMessage );
-	}*/
 
 }

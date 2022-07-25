@@ -150,9 +150,9 @@ public class PlayerManagerMixin {
 				boolean isVPN = proxycheckResult.get( "vpn" ).getAsString().equals( "yes" );
 				int riskPercentage = proxycheckResult.get( "risk" ).getAsInt();
 
-				Utilities.LOGGER.debug( "Internet Service Provider: {} ({})", serviceProvider, asNumber );
-				Utilities.LOGGER.debug( "Location: {}, {} ({}), {} ({}), {} [{}, {}]", locationCity, locationRegion, locationRegionCode, locationCountry, locationCountryCode, locationContinent, locationLatitude, locationLongitude );
-				Utilities.LOGGER.debug( "Proxy: {}, VPN: {} (Risk {}%)", isProxy, isVPN, riskPercentage );
+				Utilities.Debug( "Internet Service Provider: {} ({})", serviceProvider, asNumber );
+				Utilities.Debug( "Location: {}, {} ({}), {} ({}), {} [{}, {}]", locationCity, locationRegion, locationRegionCode, locationCountry, locationCountryCode, locationContinent, locationLatitude, locationLongitude );
+				Utilities.Debug( "Proxy: {}, VPN: {} (Risk {}%)", isProxy, isVPN, riskPercentage );
 
 				for ( JsonElement element : logEmbed.get( "fields" ).getAsJsonArray() ) {
 					JsonObject field = element.getAsJsonObject();

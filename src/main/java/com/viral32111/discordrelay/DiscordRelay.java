@@ -27,8 +27,9 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		// Load the configuration file
 		try {
 			Config.Load();
+
 		} catch ( IOException exception ) {
-			Utilities.LOGGER.error( "Failed to load the configuration file! ({})", exception.getMessage() );
+			Utilities.Error( "Failed to load the configuration file: '{}'.", exception.getMessage() );
 			return; // Do not continue
 		}
 
@@ -44,6 +45,9 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 
 	// Runs when the server finishes loading
 	private void onServerStarted( MinecraftServer server ) {
+
+		// Update the player manager property in the utilities class
+		if ( Utilities.playerManager == null ) Utilities.playerManager = server.getPlayerManager();
 
 		// Display message in the console
 		Utilities.Log( "Relaying server open message." );
@@ -87,8 +91,9 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		// Update the name of the category to indicate the server is now open with no players online
 		try {
 			Utilities.UpdateCategoryStatus( "Empty", "Minecraft Server has started." );
+
 		} catch ( Exception exception ) {
-			Utilities.LOGGER.error( exception.getMessage() );
+			Utilities.Error( exception.getMessage() );
 		}
 
 	}
@@ -97,7 +102,7 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 	private void onServerStopping( MinecraftServer server ) {
 
 		// Display message in the console
-		Utilities.Log( "Relaying server closing message." );
+		Utilities.Log( "Relaying server closed message." );
 
 		// Create an embed for the relay message
 		JsonObject relayEmbedAuthor = new JsonObject();
@@ -138,12 +143,18 @@ public class DiscordRelay implements DedicatedServerModInitializer {
 		// Update the name of the category to indicate the server is closed
 		try {
 			Utilities.UpdateCategoryStatus( "Offline", "Minecraft Server has stopped." );
+
 		} catch ( Exception exception ) {
-			Utilities.LOGGER.error( exception.getMessage() );
+			Utilities.Error( exception.getMessage() );
 		}
 
-		// Gracefully disconnect from the gateway
-		Gateway.Stop();
+		// Stop the gateway
+		try {
+			Gateway.Stop();
+
+		} catch ( Exception exception ) {
+			Utilities.Error( exception.getMessage() );
+		}
 
 	}
 
