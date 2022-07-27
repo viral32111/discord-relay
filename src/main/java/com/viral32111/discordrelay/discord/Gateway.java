@@ -21,7 +21,7 @@ public class Gateway implements WebSocket.Listener {
 	// Future that completes when the websocket connection closes, used for reconnecting depending on the boolean
 	private static CompletableFuture<Boolean> connectionClosedFuture = null;
 
-	// Compression should not be used, it is not implemented in this class
+	// Compression should not be used, it is not implemented
 	private static final boolean USE_COMPRESSION = false;
 
 	// Holds a list of  received message fragments for forming the final message
@@ -50,10 +50,14 @@ public class Gateway implements WebSocket.Listener {
 
 	}
 
+	// Closes the websocket connection
 	public static void Stop() throws Exception {
 
+		// Do not continue if there is no current websocket connection
 		if ( webSocket == null ) throw new Exception( "Underlying websocket connection not initialised" );
 
+		// Send the close frame
+		// NOTE: The 1000 close code is checked on response to prevennt reconnection
 		webSocket.sendClose( 1000, "Goodbye" );
 
 	}
@@ -80,7 +84,7 @@ public class Gateway implements WebSocket.Listener {
 		// Update the websocket property with the new websocket instance
 		webSocketConnectFuture.thenAccept( ( ws ) -> webSocket = ws );
 
-		// Reconnect to the same URL and with the same listener instance whenever the future completes
+		// Reconnect to the same URL with the same listener instance whenever the future completes
 		connectionClosedFuture.thenAccept( ( shouldReconnect ) -> {
 			if ( shouldReconnect ) Connect( url, listener );
 		} );
@@ -92,35 +96,46 @@ public class Gateway implements WebSocket.Listener {
 		return !( webSocket.isInputClosed() || webSocket.isOutputClosed() );
 	}
 
+	// Sends a heartbeat to the gateway
 	private void SendHeartbeat( WebSocket webSocket ) {
 
+		// Create a fresh future to complete when the heartbeat is acknowledged
 		heartbeatAcknowledgementFuture = new CompletableFuture<>();
 
 		try {
+
+			// Create the heartbeat payload
 			JsonObject heartbeatPayload = new JsonObject();
 			heartbeatPayload.addProperty( "op", OperationCode.Heartbeat );
 			heartbeatPayload.addProperty( "d", this.sequenceNumber );
 
+			// Send the heartbeat payload
 			webSocket.sendText( heartbeatPayload.toString(), true );
 
+		// Reconnect if any errors occur
 		} catch ( Exception exception ) {
 			Utilities.Error( exception );
 			webSocket.sendClose( 1002, "Internal error" );
 		}
 
+		// Wait for the heartbeat acknowledgement...
 		try {
 			heartbeatAcknowledgementFuture.orTimeout( 5, TimeUnit.SECONDS ).get();
 
+		// Reconnect if no acknowledgement was received
 		} catch ( ExecutionException exception ) {
 			Utilities.Error( "Heartbeat acknowledgement timeout: '{}'.", exception.getMessage() );
 			webSocket.sendClose( 1002, "Never received heartbeat acknowledgement" );
 
+		// Warning if the future was interrupted
 		} catch ( InterruptedException exception ) {
-			Utilities.Error( "Heartbeat acknowledgement interrupted: '{}'.", exception.getMessage() );
+			Utilities.Warn( "Heartbeat acknowledgement interrupted: '{}'.", exception.getMessage() );
 
+		// Warning if the future was cancelled
 		} catch ( CancellationException exception ) {
-			Utilities.Error( "Heartbeat acknowledgement cancelled: '{}'.", exception.getMessage() );
+			Utilities.Warn( "Heartbeat acknowledgement cancelled: '{}'.", exception.getMessage() );
 
+		// Error & reconnect if any other errors occur
 		} catch ( Exception exception ) {
 			Utilities.Error( exception );
 			webSocket.sendClose( 1002, "Internal error" );
@@ -128,44 +143,59 @@ public class Gateway implements WebSocket.Listener {
 
 	}
 
+	// Periodically heartbeats in the background on a specified interval
 	private void StartHeartbeating( WebSocket webSocket, int interval ) {
 
+		// Display a message in the console
 		Utilities.Log( "Started heartbeating every {} seconds.", interval / 1000.0 );
 
+		// Used to check if the first heartbeat has been sent
 		boolean sentInitialBeat = false;
 
+		// Run until the websocket connection is closed...
 		while ( IsConnected( webSocket ) && !heartbeatFuture.isCancelled() ) {
 
 			try {
+
+				// Wait a random time for the first heartbeat
 				if ( !sentInitialBeat ) {
 					long initialInterval = Math.round( interval * Math.random() );
 
 					//noinspection BusyWait
 					Thread.sleep( initialInterval );
+
+					// Update variable to indicate it has been sent
 					sentInitialBeat = true;
 
+				// Wait the usual time for normal heartbeats
 				} else {
 					//noinspection BusyWait
 					Thread.sleep( interval );
 				}
 
+			// Warn if the sleep is interrupted
 			} catch ( InterruptedException exception ) {
-				Utilities.Error( "Heartbeating interrupted: '%s'", exception.getMessage() );
+				Utilities.Warn( "Heartbeating interrupted: '%s'", exception.getMessage() );
 
+			// Warn if the sleep is cancelled
 			} catch ( CancellationException exception ) {
-				Utilities.Error( "Heartbeating cancelled: '{}'.", exception.getMessage() );
+				Utilities.Warn( "Heartbeating cancelled: '{}'.", exception.getMessage() );
 
+			// Error & reconnect if any other errors occur
 			} catch ( Exception exception ) {
 				Utilities.Error( exception );
 				webSocket.sendClose( 1002, "Internal error" );
 			}
 
+			// Check if this loop should still be running (something may have happened during the sleep)
 			if ( !IsConnected( webSocket ) || heartbeatFuture.isCancelled() ) break;
 
+			// Send a heartbeat
 			this.SendHeartbeat( webSocket );
 
 		}
 
+		// Display a message in the console
 		Utilities.Log( "Finished heartbeating." );
 
 	}
@@ -174,6 +204,7 @@ public class Gateway implements WebSocket.Listener {
 	@Override
 	public void onOpen( WebSocket webSocket ) {
 
+		// Display a message in the console
 		Utilities.Log( "Gateway connection opened." );
 
 		// Run default action
@@ -185,22 +216,29 @@ public class Gateway implements WebSocket.Listener {
 	@Override
 	public CompletionStage<?> onClose( WebSocket webSocket, int code, String reason ) {
 
+		// Display a message in the console
 		Utilities.Log( "Gateway connection closed. ({}, '{}').", code, reason );
 
-		// Stop heartbeating
 		try {
+
+			// Stop the heartbeating futures
 			if ( this.heartbeatFuture != null ) this.heartbeatFuture.cancel( true );
 			if ( this.heartbeatAcknowledgementFuture != null ) this.heartbeatAcknowledgementFuture.cancel( true );
 
+			// Wait for the heartbeating futures to end
 			if ( this.heartbeatFuture != null ) this.heartbeatFuture.join();
 			if ( this.heartbeatAcknowledgementFuture != null ) this.heartbeatAcknowledgementFuture.join();
 
+		// Warn if the waiting is cancelled
 		} catch ( CancellationException exception ) {
-			Utilities.Error( "Cancel heartbeating cancelled: '{}'", exception.getMessage() );
+			Utilities.Warn( "Cancel heartbeating cancelled: '{}'", exception.getMessage() );
 
+		// Warn if the waiting completes with an exception
 		} catch ( CompletionException exception ) {
-			Utilities.Error( "Cancel heartbeating exception: '{}'", exception.getMessage() );
+			Utilities.Warn( "Cancel heartbeating exception: '{}'", exception.getMessage() );
 
+		// Error if any other error occures
+		// NOTE: Cannot send close frame for reconnect because we are already in the close event
 		} catch ( Exception exception ) {
 			Utilities.Error( exception );
 		}
@@ -212,6 +250,7 @@ public class Gateway implements WebSocket.Listener {
 		this.heartbeatAcknowledgementFuture = null;
 
 		// Complete the future to indicate the connection is now closed
+		// NOTE: This causes a reconnect if the provided code is anything other than 1000
 		connectionClosedFuture.complete( code != 1000 );
 
 		// Return default action
@@ -236,7 +275,7 @@ public class Gateway implements WebSocket.Listener {
 			// Parse the message as JSON
 			JsonObject payload = JsonParser.parseString( message ).getAsJsonObject();
 
-			// Error if an opcode was not included
+			// Error & reconnect if an operation code was not included
 			if ( payload.get( "op" ).isJsonNull() ) {
 				Utilities.Error( "Gateway payload operation code is invalid." );
 				webSocket.sendClose( 1002, "Received invalid operation code" );
@@ -276,48 +315,65 @@ public class Gateway implements WebSocket.Listener {
 				// Send the identify payload
 				webSocket.sendText( identifyPayload.toString(), true );
 
+			// When a heartbeat acknowledgement is received...
 			} else if ( operationCode == OperationCode.HeartbeatAcknowledgement ) {
+
+				// Error & reconnect if we were not ready for this heartbeat acknowledgement
 				if ( this.heartbeatAcknowledgementFuture == null ) {
 					Utilities.Error( "Not ready for heartbeat acknowledgement" );
 					webSocket.sendClose( 1002, "Received heartbeat acknowledgement too early" );
 					return null;
 				}
 
+				// Complete the heartbeat acknowledgement future
 				this.heartbeatAcknowledgementFuture.complete( null );
 
 			// Send a heartbeat if the gateway requests it
 			} else if ( operationCode == OperationCode.Heartbeat ) {
 				this.SendHeartbeat( webSocket );
 
+			// Error & reconnect if our session is invalid
 			} else if ( operationCode == OperationCode.InvalidSession ) {
 				Utilities.Error( "The session is invalid." );
 				webSocket.sendClose( 1002, "Session reported as invalid" );
 
+			// Reconnect if the gateway requests it
 			} else if ( operationCode == OperationCode.Reconnect ) {
 				Utilities.Log( "Gateway requested reconnect." );
 				webSocket.sendClose( 1000, "Reconnect requested" );
 
+			// If this is an event dispatch and the event name & data are present...
 			} else if ( operationCode == OperationCode.Dispatch && ( payload.has( "t" ) && payload.get( "t" ).isJsonPrimitive() ) && ( payload.has( "d" ) && payload.get( "d" ).isJsonObject() ) ) {
 
+				// Store the event name & data for easy access
 				String eventName = payload.get( "t" ).getAsString();
 				JsonObject eventData = payload.getAsJsonObject( "d" );
 
+				// When we finish loading....
 				if ( eventName.equals( "READY" ) ) {
+
+					// Store the bot user
 					JsonObject user = eventData.getAsJsonObject( "user" );
 					String userName = user.get( "username" ).getAsString();
 					Integer userTag = user.get( "discriminator" ).getAsInt();
 					String userId = user.get( "id" ).getAsString();
 
+					// Display a message in the console
 					Utilities.Log( "Ready as '{}#{}' ({})", userName, userTag, userId );
 
+				// When a new message is sent...
 				} else if ( eventName.equals( "MESSAGE_CREATE" ) ) {
+
+					// Store the message details
 					String messageContent = eventData.get( "content" ).getAsString();
 					String messageId = eventData.get( "id" ).getAsString();
 					boolean isWebhook = eventData.has( "webhook_id" );
 					String channelId = eventData.get( "channel_id" ).getAsString();
 
+					// If this is not a webhook message...
 					if ( !isWebhook ) {
 
+						// Store the sender details
 						JsonObject messageAuthor = eventData.getAsJsonObject( "author" );
 						String authorName = messageAuthor.get( "username" ).getAsString();
 						Integer authorTag = messageAuthor.get( "discriminator" ).getAsInt();
@@ -325,13 +381,17 @@ public class Gateway implements WebSocket.Listener {
 						boolean authorIsBot = ( messageAuthor.has( "bot" ) && messageAuthor.get( "bot" ).getAsBoolean() );
 						boolean authorIsSystem = ( messageAuthor.has( "system" ) && messageAuthor.get( "system" ).getAsBoolean() );
 
+						// If this is in the configured relay channel, the message has content, and the author is not a bot...
 						if ( channelId.equals( Config.Get( "discord.channel.relay", null ) ) && messageContent.length() > 0 && !authorIsBot && !authorIsSystem ) {
 
+							// Display a message in the console
 							Utilities.Log( "Relaying Discord message '{}' ({}) from user '{}#{}' ({}).", messageContent, messageId, authorName, authorTag, authorId );
 
+							// Show the message in chat to all players
 							try {
 								Utilities.BroadcastDiscordMessage( authorName, messageContent );
 
+							// Error & reconnect if any other errors occur
 							} catch ( Exception exception ) {
 								Utilities.Error( exception );
 								webSocket.sendClose( 1002, "Internal error" );
@@ -341,11 +401,12 @@ public class Gateway implements WebSocket.Listener {
 
 					}
 
+				// Warn if we have not handled this event
 				} else {
 					Utilities.Warn( "Unrecognised dispatch event: '{}'.", eventName );
 				}
 
-			// Unknown operation code?
+			// Warn if we have not handled this operation code
 			} else {
 				Utilities.Warn( "Unrecognised gateway operation code: '{}'.", operationCode );
 			}
@@ -358,9 +419,11 @@ public class Gateway implements WebSocket.Listener {
 	}
 
 	// Runs when an error occurs on the websocket
+	// NOTE: The websocket has already disconnected when this is called
 	@Override
 	public void onError( WebSocket webSocket, Throwable exception ) {
 
+		// Display a message in the console
 		Utilities.Error( "Gateway connection error: '{}'.", exception.getMessage() );
 
 		// Run default action

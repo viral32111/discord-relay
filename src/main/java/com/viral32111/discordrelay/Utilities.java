@@ -87,6 +87,7 @@ public class Utilities {
 
 	}
 
+	// Returns the current date & time in UTC using the configured format
 	public static String CurrentDateTime() {
 		return DateTimeFormatter.ofPattern( Config.Get( "log-date-format", null ) ).format( ZonedDateTime.now( ZoneId.of( "UTC" ) ) );
 	}
@@ -104,7 +105,7 @@ public class Utilities {
 
 	}
 
-	// Helpers to display a message in the console with a prefix to identify the message is from this mod
+	// Helpers to display messages in the console with a prefix to identify the message is from this mod
 	public static void Log( String message, Object... params ) {
 		LOGGER.info( String.format( "[Discord Relay] %s", message ), params );
 	}
@@ -145,14 +146,19 @@ public class Utilities {
 	// Sends a Discord message in chat as a game message
 	public static void BroadcastDiscordMessage( String authorName, String messageContent ) throws Exception {
 
+		// Do not continue if the player manager has not been set yet
 		if ( playerManager == null ) throw new Exception( "Player manager not initialised" );
 
+		// Construct the styled chat message
+		// TODO: Make the format of this configurable
 		Text discordMessage = Text.literal( "" )
 			.append( Text.literal( "(Discord) " ).setStyle( Style.EMPTY.withColor( TextColor.parse( "blue" ) ) ) )
 			.append( Text.literal( authorName ).setStyle( Style.EMPTY.withColor( TextColor.parse( "white" ) ) ) )
 			.append( Text.literal( String.format( ": %s", messageContent ) ).setStyle( Style.EMPTY.withColor( TextColor.parse( "white" ) ) ) );
 
-		playerManager.broadcast( discordMessage, MessageType.SYSTEM ); // System messages do not need to be signed
+		// Send the message in chat to all players
+		// NOTE: System messages do not need to be signed
+		playerManager.broadcast( discordMessage, MessageType.SYSTEM );
 
 	}
 
