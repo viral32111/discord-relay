@@ -158,7 +158,7 @@ public class Utilities {
 
 		// Send the message in chat to all players
 		// NOTE: System messages do not need to be signed
-		playerManager.broadcast( discordMessage, MessageType.SYSTEM );
+		playerManager.broadcast( discordMessage, false );
 
 	}
 

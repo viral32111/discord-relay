@@ -5,7 +5,6 @@ import com.viral32111.discordrelay.Config;
 import com.viral32111.discordrelay.Utilities;
 import com.viral32111.discordrelay.discord.API;
 import net.minecraft.network.packet.c2s.play.ChatMessageC2SPacket;
-import net.minecraft.server.filter.FilteredMessage;
 import net.minecraft.server.network.ServerPlayNetworkHandler;
 import net.minecraft.server.network.ServerPlayerEntity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -21,14 +20,13 @@ import java.util.Map;
 public class ServerPlayNetworkHandlerMixin {
 
 	// The player these events are for
-	@Shadow
-	public ServerPlayerEntity player;
+	@Shadow public ServerPlayerEntity player;
 
-	@Inject( method = "handleMessage", at = @At( "TAIL" ) )
-	private void handleMessage( ChatMessageC2SPacket packet, FilteredMessage<String> message, CallbackInfo callbackInfo ) {
+	@Inject( method = "onChatMessage", at = @At( "HEAD" ) )
+	private void handleMessage( ChatMessageC2SPacket packet, CallbackInfo callbackInfo ) {
 
 		// Store the content of the message
-		String messageContent = message.raw();
+		String messageContent = packet.chatMessage();
 
 		// Display message in the console
 		Utilities.Log( "Relaying chat message '{}' for player '{}'.", messageContent, player.getName().getString() );
