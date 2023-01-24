@@ -14,3 +14,6 @@ remappedSrc/
 
 # Fabric
 run/
+
+# VS Code
+bin/
