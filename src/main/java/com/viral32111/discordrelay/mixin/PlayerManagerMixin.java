@@ -77,6 +77,7 @@ public class PlayerManagerMixin {
 		logEmbedAddressField.addProperty( "value", String.format( "`%s`", playerAddress ) );
 		logEmbedAddressField.addProperty( "inline", true );
 
+		/*
 		JsonObject logEmbedLocationField = new JsonObject();
 		logEmbedLocationField.addProperty( "name", "Location" );
 		logEmbedLocationField.addProperty( "value", "London, United Kingdom" ); // TODO: This is an example
@@ -91,6 +92,7 @@ public class PlayerManagerMixin {
 		logEmbedSeenField.addProperty( "name", "Last Seen" );
 		logEmbedSeenField.addProperty( "value", "3 hours ago (for 10 minutes)" ); // TODO: This is an example
 		logEmbedSeenField.addProperty( "inline", false );
+		*/
 
 		JsonObject logEmbedIdentifierField = new JsonObject();
 		logEmbedIdentifierField.addProperty( "name", "Unique Identifier (UUID)" );
@@ -101,9 +103,9 @@ public class PlayerManagerMixin {
 		logEmbedFields.add( logEmbedNameField );
 		logEmbedFields.add( logEmbedNickField );
 		logEmbedFields.add( logEmbedAddressField );
-		logEmbedFields.add( logEmbedLocationField );
+		/*logEmbedFields.add( logEmbedLocationField );
 		logEmbedFields.add( logEmbedSpoofField );
-		logEmbedFields.add( logEmbedSeenField );
+		logEmbedFields.add( logEmbedSeenField );*/
 		logEmbedFields.add( logEmbedIdentifierField );
 
 		JsonObject logEmbedThumbnail = new JsonObject();
@@ -125,6 +127,7 @@ public class PlayerManagerMixin {
 		// Send the log message as an embed, and after it has been created...
 		API.ExecuteWebhook( Config.Get( "discord.webhook.log", null ), logEmbed, true ).thenAccept( ( String messageId ) -> {
 
+			/*
 			// Fetch useful information about the player's IP address (e.g. country, is VPN/proxy), but only if it is not a local address
 			if ( connectionAddress.isAnyLocalAddress() ) Utilities.HttpRequest( "GET", String.format( "https://proxycheck.io/v2/%s?vpn=3&asn=1&node=0&time=0&risk=1&port=0&seen=1", playerAddress ), Map.of( "Accept", "application/json" ), null ).thenAccept( ( HttpResponse<String> response ) -> {
 
@@ -175,6 +178,7 @@ public class PlayerManagerMixin {
 				API.Request( "PATCH", String.format( "webhooks/%s/messages/%s", Config.Get( "discord.webhook.relay", null ), messageId ), logEmbedsPayload, null );
 
 			} );
+			 */
 
 		} );
 
@@ -235,6 +239,7 @@ public class PlayerManagerMixin {
 		logEmbedAddressField.addProperty( "value", ipAddress );
 		logEmbedAddressField.addProperty( "inline", false );
 
+		/*
 		JsonObject logEmbedLocationField = new JsonObject();
 		logEmbedLocationField.addProperty( "name", "Location" );
 		logEmbedLocationField.addProperty( "value", "London, United Kingdom" ); // TODO: This is an example
@@ -244,6 +249,7 @@ public class PlayerManagerMixin {
 		logEmbedSpoofField.addProperty( "name", "Spoof" );
 		logEmbedSpoofField.addProperty( "value", "VPN in use (50% risk)" ); // TODO: This is an example
 		logEmbedSpoofField.addProperty( "inline", true );
+		 */
 
 		JsonObject logEmbedDurationField = new JsonObject();
 		logEmbedDurationField.addProperty( "name", "Session Duration" );
@@ -259,8 +265,8 @@ public class PlayerManagerMixin {
 		logEmbedFields.add( logEmbedNameField );
 		logEmbedFields.add( logEmbedNickField );
 		logEmbedFields.add( logEmbedAddressField );
-		logEmbedFields.add( logEmbedLocationField );
-		logEmbedFields.add( logEmbedSpoofField );
+		/*logEmbedFields.add( logEmbedLocationField );
+		logEmbedFields.add( logEmbedSpoofField );*/
 		logEmbedFields.add( logEmbedDurationField );
 		logEmbedFields.add( logEmbedIdentifierField );
 
