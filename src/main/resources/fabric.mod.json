@@ -2,10 +2,10 @@
 	"schemaVersion": 1,
 
 	"id": "discordrelay",
-	"version": "${version}",
+	"version": "${ version }",
 
 	"name": "Discord Relay",
-	"description": "Relays chat messages between Minecraft and Discord.",
+	"description": "Relay chat messages between Minecraft & Discord.",
 	"authors": [ {
 		"name": "viral32111",
 		"contact": {
@@ -15,15 +15,18 @@
 	} ],
 	"contributors": [],
 	"contact": {
-		"homepage": "https://github.com/viral32111/DiscordRelay",
-		"sources": "https://github.com/viral32111/DiscordRelay",
-		"issues": "https://github.com/viral32111/DiscordRelay/issues"
+		"homepage": "https://github.com/viral32111/discord-relay",
+		"sources": "https://github.com/viral32111/discord-relay",
+		"issues": "https://github.com/viral32111/discord-relay/issues"
 	},
 	"license": "AGPL-3.0-only",
 
 	"environment": "server",
 	"entrypoints": {
-		"server": [ "com.viral32111.discordrelay.DiscordRelay" ]
+		"server": [ {
+			"adapter": "kotlin",
+			"value": "com.viral32111.discordrelay.DiscordRelay"
+		} ]
 	},
 	"mixins": [ {
 		"environment": "server",
@@ -31,10 +34,12 @@
 	} ],
 
 	"depends": {
-		"fabricloader": ">=0.14.21",
-		"fabric-api": ">=0.83.0+1.20.1",
-		"minecraft": ">=1.20.1",
-		"java": ">=17"
+		"java": ">=${ java }",
+		"minecraft": ">=${ minecraft }",
+		"fabricloader": ">=${ fabricloader }",
+		"fabric-api": ">=${ fabric_api }",
+		"fabric-language-kotlin": ">=${ fabric_language_kotlin }"
 	},
 	"suggests": {}
+
 }
