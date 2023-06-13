@@ -10,7 +10,15 @@ base {
 version = project.extra[ "mod_version" ] as String
 group = project.extra[ "maven_group" ] as String
 
-repositories {}
+repositories {
+	maven {
+		url = uri( "https://maven.pkg.github.com/viral32111/events" )
+		credentials {
+			username = project.findProperty( "gpr.user" ) as String? ?: System.getenv( "USER" )
+			password = project.findProperty( "gpr.key" ) as String? ?: System.getenv( "TOKEN" )
+		}
+	}
+}
 
 dependencies {
 
@@ -31,6 +39,19 @@ dependencies {
 
 	// Kotlin JSON serialization
 	implementation( "org.jetbrains.kotlinx", "kotlinx-serialization-json", project.extra[ "kotlinx_serialization_json_version" ] as String )
+
+	// My callbacks - https://github.com/viral32111/events
+	modImplementation( "com.viral32111", "events", project.extra[ "events_version" ] as String )
+
+	// Ktor - https://ktor.io/docs/getting-started-ktor-client.html
+	implementation( "io.ktor", "ktor-client-core", project.extra[ "ktor_version" ] as String )
+	implementation( "io.ktor", "ktor-client-cio", project.extra[ "ktor_version" ] as String )
+	implementation( "io.ktor", "ktor-client-content-negotiation", project.extra[ "ktor_version" ] as String )
+	implementation( "io.ktor", "ktor-serialization-kotlinx-json", project.extra[ "ktor_version" ] as String )
+	include( "io.ktor", "ktor-client-core", project.extra[ "ktor_version" ] as String )
+	include( "io.ktor", "ktor-client-cio", project.extra[ "ktor_version" ] as String )
+	include( "io.ktor", "ktor-client-content-negotiation", project.extra[ "ktor_version" ] as String )
+	include( "io.ktor", "ktor-serialization-kotlinx-json", project.extra[ "ktor_version" ] as String )
 
 }
 
@@ -66,7 +87,8 @@ tasks {
 				"minecraft" to project.extra[ "minecraft_version" ] as String,
 				"fabricloader" to project.extra[ "loader_version" ] as String,
 				"fabric_api" to project.extra[ "fabric_version" ] as String,
-				"fabric_language_kotlin" to project.extra[ "fabric_language_kotlin_version" ] as String
+				"fabric_language_kotlin" to project.extra[ "fabric_language_kotlin_version" ] as String,
+				"events" to project.extra[ "events_version" ] as String
 			) )
 		}
 

@@ -38,7 +38,8 @@
 		"minecraft": ">=${ minecraft }",
 		"fabricloader": ">=${ fabricloader }",
 		"fabric-api": ">=${ fabric_api }",
-		"fabric-language-kotlin": ">=${ fabric_language_kotlin }"
+		"fabric-language-kotlin": ">=${ fabric_language_kotlin }",
+		"events": ">=${ events }"
 	},
 	"suggests": {}
 
