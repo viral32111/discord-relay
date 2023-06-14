@@ -17,13 +17,10 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
 import java.nio.file.StandardOpenOption
-import kotlin.io.path.createDirectory
-import kotlin.io.path.notExists
-import kotlin.io.path.readText
-import kotlin.io.path.writeText
+import kotlin.io.path.*
 
 @Suppress( "UNUSED" )
-class Server: DedicatedServerModInitializer {
+class DiscordRelay: DedicatedServerModInitializer {
 
 	companion object {
 		private const val MOD_ID = "discordrelay"
@@ -78,6 +75,12 @@ class Server: DedicatedServerModInitializer {
 			) )
 
 			LOGGER.info( "Created configuration file '${ configurationFile }'." )
+		}
+
+
+		// Warn about the old configuration file
+		if ( serverConfigurationDirectory.resolve( "DiscordRelay.json" ).exists() ) {
+			LOGGER.warn( "The old configuration file exists! Values should be moved to '${ configurationFile }'." );
 		}
 
 		val configAsJSON = configurationFile.readText()
