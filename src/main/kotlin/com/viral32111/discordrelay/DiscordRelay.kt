@@ -2,9 +2,14 @@ package com.viral32111.discordrelay
 
 import com.viral32111.discordrelay.callback.PlayerAdvancementCompletedCallback
 import com.viral32111.discordrelay.config.Configuration
+import com.viral32111.discordrelay.discord.API
+import com.viral32111.discordrelay.helper.Version
 import com.viral32111.events.callback.server.PlayerDeathCallback
 import com.viral32111.events.callback.server.PlayerJoinCallback
 import com.viral32111.events.callback.server.PlayerLeaveCallback
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -23,7 +28,7 @@ import kotlin.io.path.*
 class DiscordRelay: DedicatedServerModInitializer {
 
 	companion object {
-		private const val MOD_ID = "discordrelay"
+		const val MOD_ID = "discordrelay"
 		val LOGGER: Logger = LoggerFactory.getLogger( "com.viral32111.$MOD_ID" )
 
 		@OptIn( ExperimentalSerializationApi::class )
@@ -37,21 +42,14 @@ class DiscordRelay: DedicatedServerModInitializer {
 		const val CONFIGURATION_FILE_NAME = "$MOD_ID.json"
 
 		var configuration = Configuration()
-
-		/**
-		 * Gets the current version of this mod.
-		 * @since 0.6.0
-		 */
-		fun getModVersion(): String =
-			FabricLoader.getInstance().getModContainer( MOD_ID ).orElseThrow {
-				throw IllegalStateException( "Mod container not found" )
-			}.metadata.version.friendlyString
 	}
 
 	override fun onInitializeServer() {
-		LOGGER.info( "Discord Relay v${ getModVersion() } initialized on the server." )
+		LOGGER.info( "Discord Relay v${ Version.discordRelay() } initialized on the server." )
 
 		configuration = loadConfigurationFile()
+
+		API.initializeHttpClient( configuration )
 
 		registerCallbackListeners()
 	}
@@ -91,6 +89,20 @@ class DiscordRelay: DedicatedServerModInitializer {
 	}
 
 	private fun registerCallbackListeners() {
+		ServerLifecycleEvents.SERVER_STARTING.register { server ->
+			LOGGER.info( "Server (${ server.serverModName }) starting" )
+
+			CoroutineScope( Dispatchers.IO ).launch {
+				try {
+					val gatewayInfo = API.getGateway()
+					LOGGER.info( gatewayInfo.url )
+				} catch ( exception: API.HttpException ) {
+					LOGGER.error( exception.message )
+				}
+
+			}
+		}
+
 		ServerLifecycleEvents.SERVER_STARTED.register { server ->
 			LOGGER.info( "Server '${ server.serverIp }:${ server.serverPort }' (${ server.serverModName }) started" )
 		}

@@ -44,12 +44,14 @@ dependencies {
 	modImplementation( "com.viral32111", "events", project.extra[ "events_version" ] as String )
 
 	// Ktor - https://ktor.io/docs/getting-started-ktor-client.html
-	implementation( "io.ktor", "ktor-client-core", project.extra[ "ktor_version" ] as String )
+	implementation("io.ktor", "ktor-client-core", project.extra[ "ktor_version" ] as String )
 	implementation( "io.ktor", "ktor-client-cio", project.extra[ "ktor_version" ] as String )
-	implementation( "io.ktor", "ktor-client-content-negotiation", project.extra[ "ktor_version" ] as String )
-	implementation( "io.ktor", "ktor-serialization-kotlinx-json", project.extra[ "ktor_version" ] as String )
 	include( "io.ktor", "ktor-client-core", project.extra[ "ktor_version" ] as String )
 	include( "io.ktor", "ktor-client-cio", project.extra[ "ktor_version" ] as String )
+
+	// Ktor JSON serialization - https://ktor.io/docs/serialization-client.html
+	implementation( "io.ktor", "ktor-client-content-negotiation", project.extra[ "ktor_version" ] as String )
+	implementation( "io.ktor", "ktor-serialization-kotlinx-json", project.extra[ "ktor_version" ] as String )
 	include( "io.ktor", "ktor-client-content-negotiation", project.extra[ "ktor_version" ] as String )
 	include( "io.ktor", "ktor-serialization-kotlinx-json", project.extra[ "ktor_version" ] as String )
 
