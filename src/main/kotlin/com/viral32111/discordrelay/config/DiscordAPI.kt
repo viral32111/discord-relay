@@ -6,6 +6,6 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class DiscordAPI(
-	@Required @SerialName( "base-url" ) val baseUrl: String = "discord.com/api",
+	@Required @SerialName( "base-url" ) val baseUrl: String = "https://discord.com/api",
 	@Required @SerialName( "version" ) val version: Int = 10
 )

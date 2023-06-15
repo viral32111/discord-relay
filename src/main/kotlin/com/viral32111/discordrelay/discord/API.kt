@@ -35,7 +35,7 @@ object API {
 
 			// https://ktor.io/docs/default-request.html
 			install( DefaultRequest ) {
-				url( "${ configuration.discord.api.baseUrl }/${ configuration.discord.api.version }/" )
+				url( "${ configuration.discord.api.baseUrl }/v${ configuration.discord.api.version }/" )
 
 				accept( ContentType.Application.Json )
 
@@ -84,6 +84,6 @@ object API {
 
 	data class HttpException( val responseStatusCode: HttpStatusCode, val requestMethod: HttpMethod, val requestUrl: Url ) : Exception() {
 		override val message: String
-			get() = "$requestMethod '$requestUrl' -> ${ responseStatusCode.value } ${ responseStatusCode.description }"
+			get() = "$requestMethod '$requestUrl' -> ${ responseStatusCode.value }"
 	}
 }

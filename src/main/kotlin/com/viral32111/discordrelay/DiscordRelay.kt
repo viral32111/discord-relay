@@ -20,6 +20,7 @@ import net.fabricmc.loader.api.FabricLoader
 import net.minecraft.util.ActionResult
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.lang.RuntimeException
 import java.net.InetSocketAddress
 import java.nio.file.StandardOpenOption
 import kotlin.io.path.*
@@ -48,6 +49,9 @@ class DiscordRelay: DedicatedServerModInitializer {
 		LOGGER.info( "Discord Relay v${ Version.discordRelay() } initialized on the server." )
 
 		configuration = loadConfigurationFile()
+		if ( configuration.discord.application.token.isBlank() ) throw RuntimeException( "Discord application token is empty/whitespace" )
+		if ( configuration.discord.api.baseUrl.isBlank() ) throw RuntimeException( "Discord API base URL is empty/whitespace" )
+		if ( configuration.discord.api.version <= 0 ) throw RuntimeException( "Discord API version is invalid" )
 
 		API.initializeHttpClient( configuration )
 
@@ -97,7 +101,9 @@ class DiscordRelay: DedicatedServerModInitializer {
 					val gatewayInfo = API.getGateway()
 					LOGGER.info( gatewayInfo.url )
 				} catch ( exception: API.HttpException ) {
-					LOGGER.error( exception.message )
+					LOGGER.error( "HTTP Exception: ${ exception.message }" )
+				} catch ( exception: Exception ) {
+					LOGGER.error( "Exception: ${ exception.message }" )
 				}
 
 			}
