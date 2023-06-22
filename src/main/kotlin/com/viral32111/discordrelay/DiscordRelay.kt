@@ -3,10 +3,12 @@ package com.viral32111.discordrelay
 import com.viral32111.discordrelay.callback.PlayerAdvancementCompletedCallback
 import com.viral32111.discordrelay.config.Configuration
 import com.viral32111.discordrelay.discord.API
+import com.viral32111.discordrelay.discord.Gateway
 import com.viral32111.discordrelay.helper.Version
 import com.viral32111.events.callback.server.PlayerDeathCallback
 import com.viral32111.events.callback.server.PlayerJoinCallback
 import com.viral32111.events.callback.server.PlayerLeaveCallback
+import io.ktor.http.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -20,7 +22,6 @@ import net.fabricmc.loader.api.FabricLoader
 import net.minecraft.util.ActionResult
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import java.lang.RuntimeException
 import java.net.InetSocketAddress
 import java.nio.file.StandardOpenOption
 import kotlin.io.path.*
@@ -82,7 +83,7 @@ class DiscordRelay: DedicatedServerModInitializer {
 
 		// Warn about the old configuration file
 		if ( serverConfigurationDirectory.resolve( "DiscordRelay.json" ).exists() ) {
-			LOGGER.warn( "The old configuration file exists! Values should be moved to '${ configurationFile }'." );
+			LOGGER.warn( "The old configuration file exists! Values should be moved to '${ configurationFile }'." )
 		}
 
 		val configAsJSON = configurationFile.readText()
@@ -93,19 +94,13 @@ class DiscordRelay: DedicatedServerModInitializer {
 	}
 
 	private fun registerCallbackListeners() {
-		ServerLifecycleEvents.SERVER_STARTING.register { server ->
-			LOGGER.info( "Server (${ server.serverModName }) starting" )
-
+		ServerLifecycleEvents.SERVER_STARTING.register { _ ->
 			CoroutineScope( Dispatchers.IO ).launch {
-				try {
-					val gatewayInfo = API.getGateway()
-					LOGGER.info( gatewayInfo.url )
-				} catch ( exception: API.HttpException ) {
-					LOGGER.error( "HTTP Exception: ${ exception.message }" )
-				} catch ( exception: Exception ) {
-					LOGGER.error( "Exception: ${ exception.message }" )
-				}
+				val gatewayWebSocketUrl = Url( API.getGateway().url )
+				LOGGER.info( "Discord Gateway URL: '${ gatewayWebSocketUrl }'" )
 
+				val gateway = Gateway( gatewayWebSocketUrl )
+				gateway.connect()
 			}
 		}
 

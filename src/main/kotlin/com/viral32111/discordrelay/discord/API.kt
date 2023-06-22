@@ -1,5 +1,6 @@
 package com.viral32111.discordrelay.discord
 
+import com.viral32111.discordrelay.DiscordRelay
 import com.viral32111.discordrelay.config.Configuration
 import com.viral32111.discordrelay.discord.data.Gateway
 import com.viral32111.discordrelay.helper.Version
@@ -26,6 +27,21 @@ object API {
 
 	// https://ktor.io/docs/create-client.html
 	fun initializeHttpClient( configuration: Configuration ) {
+		val baseUrl = "${ configuration.discord.api.baseUrl }/v${ configuration.discord.api.version }/"
+		val userAgent = arrayOf(
+			configuration.http.userAgentPrefix,
+			"Discord Relay/${ Version.discordRelay() }",
+			"Events/${ Version.events() }",
+			"Fabric Language Kotlin/${ Version.fabricLanguageKotlin() }",
+			"Fabric API/${ Version.fabricAPI() }",
+			"Fabric Loader/${ Version.fabricLoader() }",
+			"Minecraft/${ Version.minecraft() }",
+			"Java/${ Version.java() }"
+		).joinToString( " " )
+
+		DiscordRelay.LOGGER.info( "Discord API URL: '${ baseUrl }'" )
+		DiscordRelay.LOGGER.info( "HTTP User Agent: '${ userAgent }'" )
+
 		httpClient = HttpClient( CIO ) {
 
 			// https://ktor.io/docs/serialization-client.html
@@ -35,20 +51,10 @@ object API {
 
 			// https://ktor.io/docs/default-request.html
 			install( DefaultRequest ) {
-				url( "${ configuration.discord.api.baseUrl }/v${ configuration.discord.api.version }/" )
+				url( baseUrl )
 
 				accept( ContentType.Application.Json )
-
-				userAgent( arrayOf(
-					configuration.http.userAgentPrefix,
-					"Discord Relay/${ Version.discordRelay() }",
-					"Events/${ Version.events() }",
-					"Fabric Language Kotlin/${ Version.fabricLanguageKotlin() }",
-					"Fabric API/${ Version.fabricAPI() }",
-					"Fabric Loader/${ Version.fabricLoader() }",
-					"Minecraft/${ Version.minecraft() }",
-					"Java/${ Version.java() }"
-				).joinToString( " " ) )
+				userAgent( userAgent )
 
 				headers {
 					append( "From", configuration.http.fromAddress )
@@ -72,6 +78,8 @@ object API {
 		val httpResponse = httpClient.request( endpoint ) {
 			this.method = method
 		}
+
+		DiscordRelay.LOGGER.info( "HTTP ${ httpResponse.request.method } '${ httpResponse.request.url }' -> ${ httpResponse.status.value }, ${ httpResponse.contentLength() } byte(s)" )
 
 		if ( !httpResponse.status.isSuccess() ) throw HttpException( httpResponse.status, httpResponse.request.method, httpResponse.request.url )
 
