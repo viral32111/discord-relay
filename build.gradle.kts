@@ -1,8 +1,5 @@
-import net.fabricmc.loom.task.RemapJarTask
-
 plugins {
 	id( "fabric-loom" )
-	id( "com.github.johnrengelman.shadow" ) version "8.1.1"
 	kotlin( "jvm" ) version( System.getProperty( "kotlin_version" ) )
 	kotlin( "plugin.serialization" ) version( System.getProperty( "kotlin_version" ) )
 }
@@ -21,12 +18,6 @@ repositories {
 			password = project.findProperty( "gpr.key" ) as String? ?: System.getenv( "TOKEN" )
 		}
 	}
-}
-
-val shadowInclude: Configuration by configurations.creating
-
-configurations {
-	implementation.get().extendsFrom( shadowInclude )
 }
 
 dependencies {
@@ -52,24 +43,6 @@ dependencies {
 	// My callbacks - https://github.com/viral32111/events
 	modImplementation( "com.viral32111", "events", project.extra[ "events_version" ] as String )
 
-	// Ktor - https://ktor.io/docs/getting-started-ktor-client.html
-	implementation("io.ktor", "ktor-client-core", project.extra[ "ktor_version" ] as String )
-	implementation( "io.ktor", "ktor-client-cio", project.extra[ "ktor_version" ] as String )
-	shadowInclude( "io.ktor", "ktor-client-core", project.extra[ "ktor_version" ] as String )
-	shadowInclude( "io.ktor", "ktor-client-cio", project.extra[ "ktor_version" ] as String )
-
-	// Ktor JSON serialization - https://ktor.io/docs/serialization-client.html
-	implementation( "io.ktor", "ktor-client-content-negotiation", project.extra[ "ktor_version" ] as String )
-	implementation( "io.ktor", "ktor-serialization-kotlinx-json", project.extra[ "ktor_version" ] as String )
-	shadowInclude( "io.ktor", "ktor-client-content-negotiation", project.extra[ "ktor_version" ] as String )
-	shadowInclude( "io.ktor", "ktor-serialization-kotlinx-json", project.extra[ "ktor_version" ] as String )
-
-}
-
-tasks.register( "remappedShadowJar", type = RemapJarTask::class ) {
-	dependsOn( tasks.shadowJar )
-	inputFile.set( tasks.shadowJar.get().archiveFile )
-	addNestedDependencies.set( true )
 }
 
 tasks {
@@ -127,10 +100,6 @@ tasks {
 		targetCompatibility = javaVersion
 
 		withSourcesJar()
-	}
-
-	shadowJar {
-		configurations = listOf( shadowInclude )
 	}
 
 	test {

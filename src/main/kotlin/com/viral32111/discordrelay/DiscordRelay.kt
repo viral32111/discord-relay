@@ -8,7 +8,6 @@ import com.viral32111.discordrelay.helper.Version
 import com.viral32111.events.callback.server.PlayerDeathCallback
 import com.viral32111.events.callback.server.PlayerJoinCallback
 import com.viral32111.events.callback.server.PlayerLeaveCallback
-import io.ktor.http.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -23,6 +22,7 @@ import net.minecraft.util.ActionResult
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
+import java.net.URL
 import java.nio.file.StandardOpenOption
 import kotlin.io.path.*
 
@@ -54,7 +54,8 @@ class DiscordRelay: DedicatedServerModInitializer {
 		if ( configuration.discord.api.baseUrl.isBlank() ) throw RuntimeException( "Discord API base URL is empty/whitespace" )
 		if ( configuration.discord.api.version <= 0 ) throw RuntimeException( "Discord API version is invalid" )
 
-		API.initializeHttpClient( configuration )
+		HTTP.initialize( configuration )
+		API.initialize( configuration )
 
 		registerCallbackListeners()
 	}
@@ -96,7 +97,7 @@ class DiscordRelay: DedicatedServerModInitializer {
 	private fun registerCallbackListeners() {
 		ServerLifecycleEvents.SERVER_STARTING.register { _ ->
 			CoroutineScope( Dispatchers.IO ).launch {
-				val gatewayWebSocketUrl = Url( API.getGateway().url )
+				val gatewayWebSocketUrl = URL( API.getGateway().url )
 				LOGGER.info( "Discord Gateway URL: '${ gatewayWebSocketUrl }'" )
 
 				val gateway = Gateway( gatewayWebSocketUrl )
