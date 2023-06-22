@@ -1,8 +1,6 @@
 package com.viral32111.discordrelay.discord
 
-import java.net.URL
-
-class Gateway( private val webSocketUrl: URL ) {
+class Gateway( private val webSocketUrl: String ) {
 	fun connect() {
 		throw NotImplementedError()
 	}

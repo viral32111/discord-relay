@@ -11,6 +11,7 @@ import java.time.Duration
 
 object HTTP {
 	private lateinit var httpClient: HttpClient
+
 	private val defaultHttpRequestHeaders: MutableMap<String, String> = mutableMapOf(
 		"Accept" to "*/*"
 	)
@@ -55,5 +56,13 @@ object HTTP {
 		DiscordRelay.LOGGER.info( "HTTP Request: ${ httpRequest.method() } '${ httpRequest.uri() }' '${ httpRequest.bodyPublisher().get() }' (${ httpRequest.bodyPublisher().get().contentLength() } bytes)" )
 
 		return httpClient.sendAsync( httpRequest, HttpResponse.BodyHandlers.ofString() ).await()
+	}
+
+	data class HttpException(
+		val responseStatusCode: Int,
+		val requestMethod: String,
+		val requestUri: URI
+	) : Exception() {
+		override val message: String get() = "$requestMethod '$requestUri' -> $responseStatusCode"
 	}
 }

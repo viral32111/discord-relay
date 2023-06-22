@@ -4,6 +4,8 @@ import com.viral32111.discordrelay.callback.PlayerAdvancementCompletedCallback
 import com.viral32111.discordrelay.config.Configuration
 import com.viral32111.discordrelay.discord.API
 import com.viral32111.discordrelay.discord.Gateway
+import com.viral32111.discordrelay.discord.data.createEmbed
+import com.viral32111.discordrelay.discord.data.createEmbedAuthor
 import com.viral32111.discordrelay.helper.Version
 import com.viral32111.events.callback.server.PlayerDeathCallback
 import com.viral32111.events.callback.server.PlayerJoinCallback
@@ -22,7 +24,6 @@ import net.minecraft.util.ActionResult
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
-import java.net.URL
 import java.nio.file.StandardOpenOption
 import kotlin.io.path.*
 
@@ -97,7 +98,7 @@ class DiscordRelay: DedicatedServerModInitializer {
 	private fun registerCallbackListeners() {
 		ServerLifecycleEvents.SERVER_STARTING.register { _ ->
 			CoroutineScope( Dispatchers.IO ).launch {
-				val gatewayWebSocketUrl = URL( API.getGateway().url )
+				val gatewayWebSocketUrl = API.getGateway().url
 				LOGGER.info( "Discord Gateway URL: '${ gatewayWebSocketUrl }'" )
 
 				val gateway = Gateway( gatewayWebSocketUrl )
@@ -120,6 +121,17 @@ class DiscordRelay: DedicatedServerModInitializer {
 		PlayerJoinCallback.EVENT.register { connection, player ->
 			val address = connection.address as InetSocketAddress
 			LOGGER.info( "Player '${ player.name.string }' (${ player.uuidAsString }) joined from ${ address.address.hostAddress }:${ address.port }" )
+
+			CoroutineScope( Dispatchers.IO ).launch {
+				API.createMessage( configuration.discord.channels.relay.id, createEmbed {
+					author = createEmbedAuthor( "${ player.name.string } joined." ) {
+						url = configuration.thirdParty.profileUrl.format( player.uuidAsString )
+						iconUrl = configuration.thirdParty.avatarUrl.format( player.uuidAsString )
+					}
+					description = "Played for 0 hours, 0 minutes, 0 seconds."
+				} )
+			}
+
 			ActionResult.PASS
 		}
 
