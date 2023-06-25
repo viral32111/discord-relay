@@ -120,13 +120,14 @@ class DiscordRelay: DedicatedServerModInitializer {
 		ServerLifecycleEvents.SERVER_STARTED.register { server ->
 			serverStartTime = Instant.now()
 			val publicServerAddress = configuration.publicAddress.ifBlank { "${ server.serverIp }:${ server.serverPort }" }
+			val serverUrl = configuration.thirdParty.serverUrl.format( publicServerAddress )
 
 			val relayWebhookIdentifier = configuration.discord.channels.relay.webhook.id
 			val relayWebhookToken = configuration.discord.channels.relay.webhook.token
 			if ( relayWebhookIdentifier.isNotBlank() && relayWebhookToken.isNotBlank() ) CoroutineScope( Dispatchers.IO ).launch {
 				API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
 					author = EmbedAuthor( "The server is now open!" )
-					description = "Join at `${ publicServerAddress }`."
+					description = "Join at [`$publicServerAddress`]($serverUrl)."
 					color = 0x00FF00
 				}
 			}
@@ -139,24 +140,24 @@ class DiscordRelay: DedicatedServerModInitializer {
 				if ( iconFile.exists() ) API.sendWebhookEmbedWithAttachment( logWebhookIdentifier, logWebhookToken, iconFile ) {
 					title = "Server Started"
 					fields = listOf(
-						EmbedField( name = "IP Address", value = "`${ publicServerAddress }`", inline = false ),
+						EmbedField( name = "IP Address", value = "[`$publicServerAddress`]($serverUrl)", inline = false ),
 						EmbedField( name = "Version", value = server.version, inline = true ),
 						EmbedField( name = "Brand", value = server.serverModName, inline = true )
 					)
 					thumbnail = EmbedThumbnail( url = "attachment://${ iconFile.fileName }" )
 					footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
 					timestamp = getCurrentDateTimeISO8601()
-					color = 0xFFB200
+					color = 0x00FF00
 				} else API.sendWebhookEmbed( logWebhookIdentifier, logWebhookToken ) {
 					title = "Server Started"
 					fields = listOf(
-						EmbedField( name = "IP Address", value = "`${ publicServerAddress }`", inline = false ),
+						EmbedField( name = "IP Address", value = "[`$publicServerAddress`]($serverUrl)", inline = false ),
 						EmbedField( name = "Version", value = server.version, inline = true ),
 						EmbedField( name = "Brand", value = server.serverModName, inline = true )
 					)
 					footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
 					timestamp = getCurrentDateTimeISO8601()
-					color = 0xFFB200
+					color = 0x00FF00
 				}
 			}
 
@@ -192,7 +193,7 @@ class DiscordRelay: DedicatedServerModInitializer {
 					thumbnail = EmbedThumbnail( url = "attachment://${ iconFile.fileName }" )
 					footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
 					timestamp = getCurrentDateTimeISO8601()
-					color = 0xFFB200
+					color = 0xFF0000
 				} else API.sendWebhookEmbed( logWebhookIdentifier, logWebhookToken ) {
 					title = "Server Stopped"
 					fields = listOf(
@@ -201,7 +202,7 @@ class DiscordRelay: DedicatedServerModInitializer {
 					)
 					footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
 					timestamp = getCurrentDateTimeISO8601()
-					color = 0xFFB200
+					color = 0xFF0000
 				}
 			}
 
@@ -249,16 +250,16 @@ class DiscordRelay: DedicatedServerModInitializer {
 					title = "Player Joined"
 					fields = listOf(
 						EmbedField( name = "Name", value = player.name.string, inline = true ),
-						EmbedField( name = "Nickname", value = player.getNickName() ?: "*No nickname set.*", inline = true ),
-						EmbedField( name = "IP Address", value = "`${ playerIPAddress }`", inline = true ),
+						EmbedField( name = "Nickname", value = player.getNickName() ?: "*Not set*", inline = true ),
+						EmbedField( name = "IP Address", value = "[`$playerIPAddress`](${ configuration.thirdParty.ipAddressUrl.format( playerIPAddress ) })", inline = true ),
 						EmbedField( name = "Dimension", value = player.getDimensionName(), inline = true ),
 						EmbedField( name = "Position", value = "${ player.pos.getX().roundToInt() }, ${ player.pos.getY().roundToInt() }, ${ player.pos.getZ().roundToInt() }", inline = true ),
-						EmbedField( name = "Unique Identifier", value = "[`${ player.uuidAsString }`](${ playerProfileUrl })", inline = false )
+						EmbedField( name = "Unique Identifier", value = "[`${ player.uuidAsString }`]($playerProfileUrl)", inline = false )
 					)
 					thumbnail = EmbedThumbnail( url = playerAvatarUrl )
 					footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
 					timestamp = getCurrentDateTimeISO8601()
-					color = 0xED57EA
+					color = 0xFFFFFF
 				}
 			}
 
@@ -266,7 +267,7 @@ class DiscordRelay: DedicatedServerModInitializer {
 		}
 
 		PlayerLeaveCallback.EVENT.register { player ->
-			val playerIPAddress = playerIPAddresses.getOrDefault( player.uuid, "*Unknown.*" )
+			val playerIPAddress = playerIPAddresses.getOrDefault( player.uuid, "*Unknown*" )
 
 			val playerProfileUrl = configuration.thirdParty.profileUrl.format( player.uuidAsString )
 			val playerAvatarUrl = configuration.thirdParty.avatarUrl.format( player.uuidAsString )
@@ -291,16 +292,16 @@ class DiscordRelay: DedicatedServerModInitializer {
 					title = "Player Left"
 					fields = listOf(
 						EmbedField( name = "Name", value = player.name.string, inline = true ),
-						EmbedField( name = "Nickname", value = player.getNickName() ?: "*No nickname set.*", inline = true ),
-						EmbedField( name = "IP Address", value = "`${ playerIPAddress }`", inline = true ),
+						EmbedField( name = "Nickname", value = player.getNickName() ?: "*Not set*", inline = true ),
+						EmbedField( name = "IP Address", value = "[`$playerIPAddress`](${ configuration.thirdParty.ipAddressUrl.format( playerIPAddress ) })", inline = true ),
 						EmbedField( name = "Dimension", value = player.getDimensionName(), inline = true ),
 						EmbedField( name = "Position", value = "${ player.pos.getX().roundToInt() }, ${ player.pos.getY().roundToInt() }, ${ player.pos.getZ().roundToInt() }", inline = true ),
-						EmbedField( name = "Unique Identifier", value = "[`${ player.uuidAsString }`](${ playerProfileUrl })", inline = false )
+						EmbedField( name = "Unique Identifier", value = "[`${ player.uuidAsString }`]($playerProfileUrl)", inline = false )
 					)
 					thumbnail = EmbedThumbnail( url = playerAvatarUrl )
 					footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
 					timestamp = getCurrentDateTimeISO8601()
-					color = 0xED57EA
+					color = 0xFFFFFF
 				}
 			}
 
@@ -333,13 +334,13 @@ class DiscordRelay: DedicatedServerModInitializer {
 					title = "Player Died"
 					fields = listOf(
 						EmbedField( name = "Name", value = player.name.string, inline = true ),
-						EmbedField( name = "Nickname", value = player.getNickName() ?: "*No nickname set.*", inline = true ),
-						EmbedField( name = "Attacker", value = damageSource.attacker?.name?.string ?: "*Unknown.*", inline = true ),
-						EmbedField( name = "Source", value = damageSource.source?.name?.string  ?: "*Unknown.*", inline = true ),
+						EmbedField( name = "Nickname", value = player.getNickName() ?: "*Not set*", inline = true ),
+						EmbedField( name = "Attacker", value = damageSource.attacker?.name?.string ?: "*Unknown*", inline = true ),
+						EmbedField( name = "Source", value = damageSource.source?.name?.string  ?: "*Unknown*", inline = true ),
 						EmbedField( name = "Message", value = deathMessage, inline = false ),
 						EmbedField( name = "Dimension", value = player.getDimensionName(), inline = true ),
 						EmbedField( name = "Position", value = "${ player.pos.getX().roundToInt() }, ${ player.pos.getY().roundToInt() }, ${ player.pos.getZ().roundToInt() }", inline = true ),
-						EmbedField( name = "Unique Identifier", value = "[`${ player.uuidAsString }`](${ playerProfileUrl })", inline = false )
+						EmbedField( name = "Unique Identifier", value = "[`${ player.uuidAsString }`]($playerProfileUrl)", inline = false )
 					)
 					thumbnail = EmbedThumbnail( url = playerAvatarUrl )
 					footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
@@ -396,12 +397,12 @@ class DiscordRelay: DedicatedServerModInitializer {
 					title = "Player Completed Advancement"
 					fields = listOf(
 						EmbedField( name = "Name", value = player.name.string, inline = true ),
-						EmbedField( name = "Nickname", value = player.getNickName() ?: "*No nickname set.*", inline = true ),
-						EmbedField( name = "Title", value = advancement.display?.title?.string ?: "*Unknown.*", inline = true ),
-						EmbedField( name = "Type", value = advancementType ?: "*Unknown.*", inline = true ),
+						EmbedField( name = "Nickname", value = player.getNickName() ?: "*Not set*", inline = true ),
+						EmbedField( name = "Title", value = advancement.display?.title?.string ?: "*Unknown*", inline = true ),
+						EmbedField( name = "Type", value = advancementType ?: "*Unknown*", inline = true ),
 						EmbedField( name = "Dimension", value = player.getDimensionName(), inline = true ),
 						EmbedField( name = "Position", value = "${ player.pos.getX().roundToInt() }, ${ player.pos.getY().roundToInt() }, ${ player.pos.getZ().roundToInt() }", inline = true ),
-						EmbedField( name = "Unique Identifier", value = "[`${ player.uuidAsString }`](${ playerProfileUrl })", inline = false )
+						EmbedField( name = "Unique Identifier", value = "[`${ player.uuidAsString }`]($playerProfileUrl)", inline = false )
 					)
 					thumbnail = EmbedThumbnail( url = playerAvatarUrl )
 					footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
