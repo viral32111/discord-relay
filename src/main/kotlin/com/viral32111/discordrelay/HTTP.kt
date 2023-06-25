@@ -25,8 +25,8 @@ object HTTP {
 			configuration.http.userAgentPrefix,
 			"Discord Relay/${ Version.discordRelay() }",
 			"Events/${ Version.events() }",
-			"Fabric Language Kotlin/${ Version.fabricLanguageKotlin() }",
-			"Fabric API/${ Version.fabricAPI() }",
+			"Fabric Language Kotlin/${ Version.fabricLanguageKotlin( true ) }",
+			"Fabric API/${ Version.fabricAPI( true ) }",
 			"Fabric Loader/${ Version.fabricLoader() }",
 			"Minecraft/${ Version.minecraft() }",
 			"Java/${ Version.java() }"
@@ -53,9 +53,12 @@ object HTTP {
 		headers?.forEach( httpRequestBuilder::header )
 
 		val httpRequest = httpRequestBuilder.build()
-		DiscordRelay.LOGGER.info( "HTTP Request: ${ httpRequest.method() } '${ httpRequest.uri() }' '${ httpRequest.bodyPublisher().get() }' (${ httpRequest.bodyPublisher().get().contentLength() } bytes)" )
+		DiscordRelay.LOGGER.info( "HTTP Request: ${ httpRequest.method() } '${ httpRequest.uri() }' '${ body.orEmpty() }' (${ httpRequest.bodyPublisher().get().contentLength() } bytes)" )
 
-		return httpClient.sendAsync( httpRequest, HttpResponse.BodyHandlers.ofString() ).await()
+		val httpResponse = httpClient.sendAsync( httpRequest, HttpResponse.BodyHandlers.ofString() ).await()
+		DiscordRelay.LOGGER.info( "HTTP Response: ${ httpResponse.statusCode() } '${ httpResponse.body() }' (${ httpResponse.body().length } bytes)" )
+
+		return httpResponse
 	}
 
 	data class HttpException(

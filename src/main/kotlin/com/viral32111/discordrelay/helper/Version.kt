@@ -28,8 +28,8 @@ object Version {
 	fun fabricLoader(): String = byModIdentifier( "fabricloader" )
 
 	// Mods
-	fun fabricAPI(): String = byModIdentifier( "fabric-api" )
-	fun fabricLanguageKotlin(): String = byModIdentifier( "fabric-language-kotlin" )
+	fun fabricAPI( stripSuffix: Boolean = false ): String = byModIdentifier( "fabric-api" ).apply { if ( stripSuffix ) this.split(  "+" ).first() }
+	fun fabricLanguageKotlin( stripSuffix: Boolean = false ): String = byModIdentifier( "fabric-language-kotlin" ).apply { if ( stripSuffix ) this.split(  "+" ).first() }
 	fun events(): String = byModIdentifier( "events" )
 	fun discordRelay(): String = byModIdentifier( "discordrelay" )
 
