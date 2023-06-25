@@ -5,12 +5,11 @@ import com.viral32111.discordrelay.HTTP
 import com.viral32111.discordrelay.config.Configuration
 import com.viral32111.discordrelay.discord.data.*
 import com.viral32111.discordrelay.discord.data.Gateway
-import kotlinx.atomicfu.TraceBase.None.append
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.Paths
+import java.util.Base64
 
 object API {
 	private lateinit var apiBaseUrl: String
@@ -40,7 +39,7 @@ object API {
 
 	private suspend fun request( endpoint: String, payload: JsonObject, method: String = "GET" ): JsonElement {
 		val httpRequestHeaders = defaultHttpRequestHeaders.toMutableMap()
-		httpRequestHeaders[ "Content-Type" ] = "application/json"
+		httpRequestHeaders[ "Content-Type" ] = "application/json; charset=utf-8"
 
 		val httpResponse = HTTP.request( method, "$apiBaseUrl/$endpoint", httpRequestHeaders, JSON.encodeToString( payload ) )
 		if ( httpResponse.statusCode() < 200 || httpResponse.statusCode() >= 300 ) throw HTTP.HttpException( httpResponse.statusCode(), httpResponse.request().method(), httpResponse.request().uri() )
@@ -96,34 +95,30 @@ object API {
 		} ) as JsonObject
 	) )
 
-	suspend fun sendWebhookAttachmentEmbed( identifier: String, token: String, filePath: Path, builderBlock: EmbedBuilder.() -> Unit ) {
-		val boundary = "1e5354201eb19853"
+	suspend fun sendWebhookEmbedWithAttachment( identifier: String, token: String, filePath: Path, builderBlock: EmbedBuilder.() -> Unit ) {
+		val formData = HTTP.createFormData {
+			addTextSection {
+				name = "payload_json"
+				contentType = "application/json"
+				value = JSON.encodeToString( createWebhookMessage {
+					embeds = listOf( EmbedBuilder().apply( builderBlock ).build() )
+				} )
+			}
+
+			addBytesSection {
+				name = "files[0]"
+				parameters[ "filename" ] = filePath.fileName.toString()
+				contentType = Files.probeContentType( filePath )
+				value = Files.readAllBytes( filePath ).toMutableList()
+			}
+		}
+
+		DiscordRelay.LOGGER.info( Base64.getEncoder().encodeToString( formData.toByteArray() ) )
 
 		val headers = defaultHttpRequestHeaders.toMutableMap()
-		headers[ "Content-Type" ] = "multipart/form-data; boundary=$boundary"
+		headers[ "Content-Type" ] = "multipart/form-data; charset=utf-8; boundary=${ formData.boundary }"
 
-		val file = filePath.toFile()
-
-		val multipartBody = StringBuilder().apply {
-			append( "--$boundary\r\n" )
-			append( "Content-Disposition: form-data; name=\"payload_json\"\r\n\r\n" )
-			append( JSON.encodeToString( createWebhookMessage {
-				embeds = listOf( EmbedBuilder().apply( builderBlock ).build() )
-			} ) )
-			append( "\r\n--$boundary\r\n" )
-			append( "Content-Disposition: form-data; name=\"file\"; filename=\"${ file.name }\"\r\n" )
-			append( "Content-Type: ${ Files.probeContentType( filePath ) }\r\n\r\n" )
-			append( file.readBytes() )
-			append( "\r\n--$boundary--" )
-		}.toString()
-
-		val httpResponse = HTTP.request(
-			method = "POST",
-			url = "$apiBaseUrl/webhooks/$identifier/$token?wait=true",
-			headers = headers,
-			body = multipartBody
-		)
-
+		val httpResponse = HTTP.request( "POST", "$apiBaseUrl/webhooks/$identifier/$token?wait=true", headers, null, formData )
 		if ( httpResponse.statusCode() < 200 || httpResponse.statusCode() >= 300 ) throw HTTP.HttpException( httpResponse.statusCode(), httpResponse.request().method(), httpResponse.request().uri() )
 
 		return JSON.decodeFromString( httpResponse.body() )

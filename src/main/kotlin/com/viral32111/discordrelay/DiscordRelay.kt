@@ -135,7 +135,20 @@ class DiscordRelay: DedicatedServerModInitializer {
 			val logWebhookIdentifier = configuration.discord.channels.log.webhook.id
 			val logWebhookToken = configuration.discord.channels.log.webhook.token
 			if ( logWebhookIdentifier.isNotBlank() && logWebhookToken.isNotBlank() ) CoroutineScope( Dispatchers.IO ).launch {
-				API.sendWebhookEmbed( logWebhookIdentifier, logWebhookToken ) {
+				val iconFile = Path( server.runDirectory.absolutePath, "server-icon.png" )
+
+				if ( iconFile.exists() ) API.sendWebhookEmbedWithAttachment( logWebhookIdentifier, logWebhookToken, iconFile ) {
+					title = "Server Started"
+					fields = listOf(
+						EmbedField( name = "IP Address", value = "`${ publicServerAddress }`", inline = false ),
+						EmbedField( name = "Version", value = "`${ server.version }`", inline = true ),
+						EmbedField( name = "Brand", value = "`${ server.serverModName }`", inline = true )
+					)
+					thumbnail = EmbedThumbnail( url = "attachment://${ iconFile.fileName }" )
+					footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
+					timestamp = getCurrentDateTimeISO8601()
+					color = 0xFFB200
+				} else API.sendWebhookEmbed( logWebhookIdentifier, logWebhookToken ) {
 					title = "Server Started"
 					fields = listOf(
 						EmbedField( name = "IP Address", value = "`${ publicServerAddress }`", inline = false ),
@@ -155,11 +168,7 @@ class DiscordRelay: DedicatedServerModInitializer {
 			val relayWebhookIdentifier = configuration.discord.channels.relay.webhook.id
 			val relayWebhookToken = configuration.discord.channels.relay.webhook.token
 			if ( relayWebhookIdentifier.isNotBlank() && relayWebhookToken.isNotBlank() ) CoroutineScope( Dispatchers.IO ).launch {
-				if ( server.iconFile.isPresent ) API.sendWebhookAttachmentEmbed( relayWebhookIdentifier, relayWebhookToken, server.iconFile.get() ) {
-					author = EmbedAuthor( "The server has closed." )
-					description = "Open for ${ serverUptime }."
-					color = 0xFF0000
-				} else API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
+				API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
 					author = EmbedAuthor( "The server has closed." )
 					description = "Open for ${ serverUptime }."
 					color = 0xFF0000
@@ -169,7 +178,19 @@ class DiscordRelay: DedicatedServerModInitializer {
 			val logWebhookIdentifier = configuration.discord.channels.log.webhook.id
 			val logWebhookToken = configuration.discord.channels.log.webhook.token
 			if ( logWebhookIdentifier.isNotBlank() && logWebhookToken.isNotBlank() ) CoroutineScope( Dispatchers.IO ).launch {
-				API.sendWebhookEmbed( logWebhookIdentifier, logWebhookToken ) {
+				val iconFile = Path( server.runDirectory.path, "server-icon.png" )
+
+				if ( iconFile.exists() ) API.sendWebhookEmbedWithAttachment( logWebhookIdentifier, logWebhookToken, iconFile ) {
+					title = "Server Stopped"
+					fields = listOf(
+						EmbedField( name = "Started At", value = serverStartTime.formatInUTC( configuration.dateTimeFormat ), inline = false ),
+						EmbedField( name = "Uptime", value = serverUptime, inline = false )
+					)
+					thumbnail = EmbedThumbnail( url = "attachment://${ iconFile.fileName }" )
+					footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
+					timestamp = getCurrentDateTimeISO8601()
+					color = 0xFFB200
+				} else API.sendWebhookEmbed( logWebhookIdentifier, logWebhookToken ) {
 					title = "Server Stopped"
 					fields = listOf(
 						EmbedField( name = "Started At", value = serverStartTime.formatInUTC( configuration.dateTimeFormat ), inline = true ),
