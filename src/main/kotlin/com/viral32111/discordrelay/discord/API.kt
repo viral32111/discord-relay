@@ -14,7 +14,6 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.*
 
 object API {
 	private lateinit var apiBaseUrl: String
@@ -114,8 +113,6 @@ object API {
 				value = Files.readAllBytes( filePath ).toMutableList()
 			}
 		}
-
-		DiscordRelay.LOGGER.info( Base64.getEncoder().encodeToString( formData.toByteArray() ) )
 
 		val headers = defaultHttpRequestHeaders.toMutableMap()
 		headers[ "Content-Type" ] = "multipart/form-data; charset=utf-8; boundary=${ formData.boundary }"

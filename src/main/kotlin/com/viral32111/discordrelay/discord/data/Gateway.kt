@@ -18,3 +18,9 @@ data class GatewayEventPayload(
 	@Required @SerialName( "d" ) val eventData: JsonElement?,
 	@Required @SerialName( "t" ) val eventName: String?
 )
+
+// https://discord.com/developers/docs/topics/gateway-events#hello
+@Serializable
+data class GatewayHello(
+	@Required @SerialName( "heartbeat_interval" ) val heartbeatInterval: Long
+)
