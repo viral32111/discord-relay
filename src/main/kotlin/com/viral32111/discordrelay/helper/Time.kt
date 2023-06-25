@@ -13,7 +13,7 @@ fun getCurrentDateTimeISO8601(): String = ZonedDateTime.now( utcZone ).format( D
 
 fun Instant.formatInUTC( format: String = defaultFormat ): String = DateTimeFormatter.ofPattern( format ).format( this.atZone( utcZone ) )
 
-fun Long.toHourMinuteSecond(): String = listOf(
+fun Long.toHumanReadableTime(): String = listOf(
 		this / ( 24 * 3600 ) to "day",
 		this / 3600 % 24 to "hour",
 		this / 60 % 60 to "minute",

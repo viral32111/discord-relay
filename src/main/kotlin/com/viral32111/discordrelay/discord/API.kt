@@ -2,14 +2,19 @@ package com.viral32111.discordrelay.discord
 
 import com.viral32111.discordrelay.DiscordRelay
 import com.viral32111.discordrelay.HTTP
+import com.viral32111.discordrelay.JSON
 import com.viral32111.discordrelay.config.Configuration
+import com.viral32111.discordrelay.createFormData
 import com.viral32111.discordrelay.discord.data.*
 import com.viral32111.discordrelay.discord.data.Gateway
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.encodeToJsonElement
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.Base64
+import java.util.*
 
 object API {
 	private lateinit var apiBaseUrl: String
@@ -17,11 +22,6 @@ object API {
 	private val defaultHttpRequestHeaders: MutableMap<String, String> = mutableMapOf(
 		"Accept" to "application/json; */*"
 	)
-
-	val JSON = Json {
-		prettyPrint = false
-		ignoreUnknownKeys = true
-	}
 
 	fun initialize( configuration: Configuration ) {
 		apiBaseUrl = "${ configuration.discord.api.baseUrl }/v${ configuration.discord.api.version }"
@@ -86,22 +86,24 @@ object API {
 		endpoint = "webhooks/$identifier/$token?wait=true",
 		payload = JSON.encodeToJsonElement( WebhookMessageBuilder().apply( builderBlock ).apply { preventMentions() }.build() ) as JsonObject
 	) )
-	suspend fun sendWebhookEmbed( identifier: String, token: String, builderBlock: EmbedBuilder.() -> Unit ): Message = JSON.decodeFromJsonElement( request(
+	suspend fun sendWebhookEmbed( identifier: String, token: String, embed: Embed ): Message = JSON.decodeFromJsonElement( request(
 		method = "POST",
 		endpoint = "webhooks/$identifier/$token?wait=true",
 		payload = JSON.encodeToJsonElement( createWebhookMessage {
 			preventMentions()
-			embeds = mutableListOf( EmbedBuilder().apply( builderBlock ).build() )
+			embeds = listOf( embed )
 		} ) as JsonObject
 	) )
+	suspend fun sendWebhookEmbed( identifier: String, token: String, builderBlock: EmbedBuilder.() -> Unit ) =
+		sendWebhookEmbed( identifier, token, EmbedBuilder().apply( builderBlock ).build() )
 
-	suspend fun sendWebhookEmbedWithAttachment( identifier: String, token: String, filePath: Path, builderBlock: EmbedBuilder.() -> Unit ) {
-		val formData = HTTP.createFormData {
+	suspend fun sendWebhookEmbedWithAttachment( identifier: String, token: String, filePath: Path, embed: Embed ) {
+		val formData = createFormData {
 			addTextSection {
 				name = "payload_json"
 				contentType = "application/json"
 				value = JSON.encodeToString( createWebhookMessage {
-					embeds = listOf( EmbedBuilder().apply( builderBlock ).build() )
+					embeds = listOf( embed )
 				} )
 			}
 
@@ -123,4 +125,6 @@ object API {
 
 		return JSON.decodeFromString( httpResponse.body() )
 	}
+	suspend fun sendWebhookEmbedWithAttachment( identifier: String, token: String, filePath: Path, builderBlock: EmbedBuilder.() -> Unit ) =
+		sendWebhookEmbedWithAttachment( identifier, token, filePath, EmbedBuilder().apply( builderBlock ).build() )
 }

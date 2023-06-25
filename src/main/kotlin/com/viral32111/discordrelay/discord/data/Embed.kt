@@ -57,3 +57,5 @@ data class EmbedBuilder(
 ) {
 	fun build() = Embed( title, description, url, timestamp, color, footer, thumbnail, author, fields )
 }
+
+fun createEmbed( block: EmbedBuilder.() -> Unit ) = EmbedBuilder().apply( block ).build()

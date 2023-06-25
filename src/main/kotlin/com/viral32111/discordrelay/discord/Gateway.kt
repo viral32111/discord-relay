@@ -2,12 +2,12 @@ package com.viral32111.discordrelay.discord
 
 import com.viral32111.discordrelay.DiscordRelay
 import com.viral32111.discordrelay.HTTP
+import com.viral32111.discordrelay.JSON
 import com.viral32111.discordrelay.config.Configuration
 import com.viral32111.discordrelay.discord.data.GatewayEventPayload
 import kotlinx.coroutines.*
 import kotlinx.coroutines.future.await
 import kotlinx.serialization.encodeToString
-import java.lang.IllegalStateException
 import java.net.URI
 import java.net.http.WebSocket
 import java.util.concurrent.CompletableFuture
@@ -49,8 +49,8 @@ class Gateway( private val webSocketUrl: String, private val configuration: Conf
 	private fun processMessage( text: String ) {
 		val webSocket = webSocket ?: throw IllegalStateException( "Gateway not initialized" )
 
-		val payload = API.JSON.decodeFromString<GatewayEventPayload>( text )
-		DiscordRelay.LOGGER.info( "${ payload.operationCode }, ${ payload.sequenceNumber }, ${ payload.eventName }: '${ API.JSON.encodeToString( payload.eventData ) }'" )
+		val payload = JSON.decodeFromString<GatewayEventPayload>( text )
+		DiscordRelay.LOGGER.info( "${ payload.operationCode }, ${ payload.sequenceNumber }, ${ payload.eventName }: '${ JSON.encodeToString( payload.eventData ) }'" )
 
 		when ( payload.operationCode ) {
 			0 -> { // event dispatch
