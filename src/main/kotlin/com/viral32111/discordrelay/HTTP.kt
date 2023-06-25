@@ -8,7 +8,9 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.net.http.WebSocket
 import java.time.Duration
+import java.util.concurrent.TimeUnit
 
 object HTTP {
 	private lateinit var httpClient: HttpClient
@@ -63,6 +65,11 @@ object HTTP {
 
 		return httpResponse
 	}
+
+	suspend fun createWebSocket( uri: URI, listener: WebSocket.Listener, configuration: Configuration ): WebSocket = httpClient.newWebSocketBuilder()
+			.connectTimeout( Duration.ofSeconds( configuration.http.timeoutSeconds.toLong() ) )
+			.buildAsync( uri, listener )
+			.await()
 
 	data class HttpException(
 		val responseStatusCode: Int,

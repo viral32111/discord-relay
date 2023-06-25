@@ -3,6 +3,7 @@ package com.viral32111.discordrelay
 import com.viral32111.discordrelay.callback.PlayerAdvancementCompletedCallback
 import com.viral32111.discordrelay.config.Configuration
 import com.viral32111.discordrelay.discord.API
+import com.viral32111.discordrelay.discord.Gateway
 import com.viral32111.discordrelay.discord.data.EmbedAuthor
 import com.viral32111.discordrelay.discord.data.EmbedField
 import com.viral32111.discordrelay.discord.data.EmbedFooter
@@ -55,6 +56,7 @@ class DiscordRelay: DedicatedServerModInitializer {
 
 		var serverStartTime: Instant = Instant.now()
 		val playerIPAddresses: MutableMap<UUID, String> = mutableMapOf()
+		var gateway: Gateway? = null
 	}
 
 	override fun onInitializeServer() {
@@ -111,10 +113,7 @@ class DiscordRelay: DedicatedServerModInitializer {
 				val gatewayWebSocketUrl = API.getGateway().url
 				LOGGER.info( "Discord Gateway URL: '${ gatewayWebSocketUrl }'" )
 
-				/*
-				val gateway = Gateway( gatewayWebSocketUrl )
-				gateway.connect()
-				*/
+				gateway = Gateway( gatewayWebSocketUrl, configuration )
 			}
 		}
 
@@ -141,8 +140,8 @@ class DiscordRelay: DedicatedServerModInitializer {
 					title = "Server Started"
 					fields = listOf(
 						EmbedField( name = "IP Address", value = "`${ publicServerAddress }`", inline = false ),
-						EmbedField( name = "Version", value = "`${ server.version }`", inline = true ),
-						EmbedField( name = "Brand", value = "`${ server.serverModName }`", inline = true )
+						EmbedField( name = "Version", value = server.version, inline = true ),
+						EmbedField( name = "Brand", value = server.serverModName, inline = true )
 					)
 					thumbnail = EmbedThumbnail( url = "attachment://${ iconFile.fileName }" )
 					footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
@@ -152,13 +151,17 @@ class DiscordRelay: DedicatedServerModInitializer {
 					title = "Server Started"
 					fields = listOf(
 						EmbedField( name = "IP Address", value = "`${ publicServerAddress }`", inline = false ),
-						EmbedField( name = "Version", value = "`${ server.version }`", inline = true ),
-						EmbedField( name = "Brand", value = "`${ server.serverModName }`", inline = true )
+						EmbedField( name = "Version", value = server.version, inline = true ),
+						EmbedField( name = "Brand", value = server.serverModName, inline = true )
 					)
 					footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
 					timestamp = getCurrentDateTimeISO8601()
 					color = 0xFFB200
 				}
+			}
+
+			CoroutineScope( Dispatchers.IO ).launch {
+				gateway?.open()
 			}
 		}
 
@@ -200,6 +203,10 @@ class DiscordRelay: DedicatedServerModInitializer {
 					timestamp = getCurrentDateTimeISO8601()
 					color = 0xFFB200
 				}
+			}
+
+			CoroutineScope( Dispatchers.IO ).launch {
+				gateway?.close()
 			}
 		}
 

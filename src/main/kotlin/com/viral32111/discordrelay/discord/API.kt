@@ -18,7 +18,7 @@ object API {
 		"Accept" to "application/json; */*"
 	)
 
-	private val JSON = Json {
+	val JSON = Json {
 		prettyPrint = false
 		ignoreUnknownKeys = true
 	}
