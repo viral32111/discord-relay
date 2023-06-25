@@ -7,6 +7,7 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.nio.file.Path
 import java.time.Duration
 
 object HTTP {
@@ -37,12 +38,14 @@ object HTTP {
 		DiscordRelay.LOGGER.info( "HTTP From Address: '${ defaultHttpRequestHeaders[ "From" ] }'" )
 	}
 
-	suspend fun request( method: String, url: String, headers: Map<String, String>? = null, body: String? = null ): HttpResponse<String> {
+	suspend fun request( method: String, url: String, headers: Map<String, String>? = null, body: String? = null, file: Path? = null ): HttpResponse<String> {
 		if ( !::httpClient.isInitialized ) throw IllegalStateException( "HTTP client not initialized" )
 		if ( body != null && headers?.containsKey( "Content-Type" ) == false ) throw IllegalArgumentException( "HTTP content type header required for body" )
 
 		val uri = URI.create( url )
-		val bodyPublisher = if ( !body.isNullOrBlank() ) HttpRequest.BodyPublishers.ofString( body ) else HttpRequest.BodyPublishers.noBody()
+		val bodyPublisher = if ( file != null ) HttpRequest.BodyPublishers.ofFile( file )
+			else if ( !body.isNullOrBlank() ) HttpRequest.BodyPublishers.ofString( body )
+			else HttpRequest.BodyPublishers.noBody()
 
 		val httpRequestBuilder = HttpRequest.newBuilder()
 			.timeout( httpClient.connectTimeout().get() )

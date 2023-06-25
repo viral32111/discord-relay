@@ -2,6 +2,7 @@ package com.viral32111.discordrelay.discord.data
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 // https://discord.com/developers/docs/resources/webhook#execute-webhook
 
@@ -10,7 +11,7 @@ data class WebhookMessage(
 	@SerialName( "avatar_url" ) val avatarUrl: String? = null,
 	@SerialName( "username" ) val userName: String? = null,
 	val content: String? = null,
-	val embeds: MutableList<Embed>? = null,
+	val embeds: List<Embed>? = null,
 	@SerialName( "allowed_mentions" ) val allowedMentions: AllowedMentions? = null
 )
 
@@ -18,7 +19,7 @@ class WebhookMessageBuilder {
 	var avatarUrl: String? = null
 	var userName: String? = null
 	var content: String = ""
-	var embeds: MutableList<Embed>? = null
+	var embeds: List<Embed>? = null
 	var allowedMentions: AllowedMentions? = null
 
 	fun preventMentions() { allowedMentions = AllowedMentions(

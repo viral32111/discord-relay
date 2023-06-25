@@ -149,13 +149,17 @@ class DiscordRelay: DedicatedServerModInitializer {
 			}
 		}
 
-		ServerLifecycleEvents.SERVER_STOPPING.register { _ ->
+		ServerLifecycleEvents.SERVER_STOPPING.register { server ->
 			val serverUptime = ( Instant.now().epochSecond - serverStartTime.epochSecond ).toHourMinuteSecond()
 
 			val relayWebhookIdentifier = configuration.discord.channels.relay.webhook.id
 			val relayWebhookToken = configuration.discord.channels.relay.webhook.token
 			if ( relayWebhookIdentifier.isNotBlank() && relayWebhookToken.isNotBlank() ) CoroutineScope( Dispatchers.IO ).launch {
-				API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
+				if ( server.iconFile.isPresent ) API.sendWebhookAttachmentEmbed( relayWebhookIdentifier, relayWebhookToken, server.iconFile.get() ) {
+					author = EmbedAuthor( "The server has closed." )
+					description = "Open for ${ serverUptime }."
+					color = 0xFF0000
+				} else API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
 					author = EmbedAuthor( "The server has closed." )
 					description = "Open for ${ serverUptime }."
 					color = 0xFF0000
@@ -286,11 +290,10 @@ class DiscordRelay: DedicatedServerModInitializer {
 			if ( relayWebhookIdentifier.isNotBlank() && relayWebhookToken.isNotBlank() ) CoroutineScope( Dispatchers.IO ).launch {
 				API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
 					author = EmbedAuthor(
-						name = "${ player.name.string } died.",
+						name = deathMessage,
 						url = playerProfileUrl,
 						iconUrl = playerAvatarUrl
 					)
-					description = deathMessage
 					color = 0xFFFFAA
 				}
 			}

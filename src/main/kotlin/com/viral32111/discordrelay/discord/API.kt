@@ -5,8 +5,12 @@ import com.viral32111.discordrelay.HTTP
 import com.viral32111.discordrelay.config.Configuration
 import com.viral32111.discordrelay.discord.data.*
 import com.viral32111.discordrelay.discord.data.Gateway
+import kotlinx.atomicfu.TraceBase.None.append
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
 
 object API {
 	private lateinit var apiBaseUrl: String
@@ -91,4 +95,37 @@ object API {
 			embeds = mutableListOf( EmbedBuilder().apply( builderBlock ).build() )
 		} ) as JsonObject
 	) )
+
+	suspend fun sendWebhookAttachmentEmbed( identifier: String, token: String, filePath: Path, builderBlock: EmbedBuilder.() -> Unit ) {
+		val boundary = "1e5354201eb19853"
+
+		val headers = defaultHttpRequestHeaders.toMutableMap()
+		headers[ "Content-Type" ] = "multipart/form-data; boundary=$boundary"
+
+		val file = filePath.toFile()
+
+		val multipartBody = StringBuilder().apply {
+			append( "--$boundary\r\n" )
+			append( "Content-Disposition: form-data; name=\"payload_json\"\r\n\r\n" )
+			append( JSON.encodeToString( createWebhookMessage {
+				embeds = listOf( EmbedBuilder().apply( builderBlock ).build() )
+			} ) )
+			append( "\r\n--$boundary\r\n" )
+			append( "Content-Disposition: form-data; name=\"file\"; filename=\"${ file.name }\"\r\n" )
+			append( "Content-Type: ${ Files.probeContentType( filePath ) }\r\n\r\n" )
+			append( file.readBytes() )
+			append( "\r\n--$boundary--" )
+		}.toString()
+
+		val httpResponse = HTTP.request(
+			method = "POST",
+			url = "$apiBaseUrl/webhooks/$identifier/$token?wait=true",
+			headers = headers,
+			body = multipartBody
+		)
+
+		if ( httpResponse.statusCode() < 200 || httpResponse.statusCode() >= 300 ) throw HTTP.HttpException( httpResponse.statusCode(), httpResponse.request().method(), httpResponse.request().uri() )
+
+		return JSON.decodeFromString( httpResponse.body() )
+	}
 }
