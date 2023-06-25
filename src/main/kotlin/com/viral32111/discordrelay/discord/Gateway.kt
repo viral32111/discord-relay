@@ -189,6 +189,7 @@ class Gateway( private val webSocketUrl: String, private val configuration: Conf
 
 			isOpen.set( false )
 
+			// todo: dont reconnect if we requested the close
 			DiscordRelay.LOGGER.info( "we need to reconnect" )
 			coroutineScope.launch { reconnect() }
 
