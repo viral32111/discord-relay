@@ -51,8 +51,11 @@ class DiscordRelay: DedicatedServerModInitializer {
 				val gatewayUrl = API.getGateway().url
 				LOGGER.info( "Discord Gateway URL: '${ gatewayUrl }'" )
 
-				gateway.open( gatewayUrl )
-				gateway.awaitClosure()
+				while ( true ) {
+					gateway.open( gatewayUrl )
+					gateway.awaitClosure()
+					LOGGER.info( "Gateway connection finished. Reconnecting..." )
+				}
 			}
 
 			ServerLifecycleEvents.SERVER_STOPPING.register {
@@ -87,7 +90,6 @@ class DiscordRelay: DedicatedServerModInitializer {
 
 			LOGGER.info( "Created configuration file '${ configurationFile }'." )
 		}
-
 
 		// Warn about the old configuration file
 		if ( serverConfigurationDirectory.resolve( "DiscordRelay.json" ).exists() ) {

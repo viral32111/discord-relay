@@ -25,7 +25,6 @@ data class Gateway(
 			const val Ready = 0
 			const val Heartbeat = 1
 			const val Identify = 2
-			const val Resume = 6
 			const val Reconnect = 7
 			const val InvalidSession = 9
 			const val Hello = 10
