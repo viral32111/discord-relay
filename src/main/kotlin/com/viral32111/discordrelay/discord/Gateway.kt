@@ -3,165 +3,240 @@ package com.viral32111.discordrelay.discord
 import com.viral32111.discordrelay.DiscordRelay
 import com.viral32111.discordrelay.HTTP
 import com.viral32111.discordrelay.JSON
+import com.viral32111.discordrelay.WebSocketCloseCode
 import com.viral32111.discordrelay.config.Configuration
-import com.viral32111.discordrelay.discord.data.GatewayEventPayload
-import com.viral32111.discordrelay.discord.data.GatewayHello
+import com.viral32111.discordrelay.discord.data.Gateway
 import kotlinx.coroutines.*
 import kotlinx.coroutines.future.await
+import kotlinx.coroutines.time.withTimeout
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.decodeFromJsonElement
-import kotlinx.serialization.json.put
-import kotlinx.serialization.json.putJsonObject
+import kotlinx.serialization.json.encodeToJsonElement
 import java.net.URI
 import java.net.http.WebSocket
+import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
-import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.math.pow
 import kotlin.random.Random
 
-class Gateway( private val webSocketUrl: String, private val configuration: Configuration ) {
-	private var webSocket: WebSocket? = null
-	private val isOpen = AtomicBoolean( false )
+class Gateway( private val configuration: Configuration ) {
+
+	// Dedicated scope for our coroutines to run on
 	private val coroutineScope = CoroutineScope( Dispatchers.IO )
-	private var reconnectCount = 0
+
+	// The underlying WebSocket connection
+	private var webSocket: WebSocket? = null
+
+	// Future that completes when the underlying WebSocket receives a close event
+	private var connectionClosureConfirmation: CompletableDeferred<Int>? = null
+
+	// Job & completable for heartbeating in the background
+	private var heartbeatJob: Job? = null
+	private var heartbeatAcknowledgementConfirmation: CompletableDeferred<Unit>? = null
+
+	// Last known sequence number for heartbeating & session resuming
 	private var sequenceNumber: Int? = null
 
-	private enum class OperationCodes( val code: Int ) {
-		Hello( 10 ),
-		Ready( 0 ),
-		Resume( 6 ),
-		Reconnect( 7 ),
-		InvalidSession( 9 ),
-		Heartbeat( 1 ),
-		HeartbeatAcknowledgement( 11 ),
-		Identify( 2 )
+	//private var reconnectCount = 0
+
+	/**
+	 * Opens a WebSocket connection to the given URL, closing any existing connections beforehand.
+	 * Ideally wait for closure confirmation after calling this.
+	 * @param baseUrl The base URL of the WebSocket. Should not include any parameters.
+	 * @param version The gateway version to include in the parameters.
+	 * @return The underlying WebSocket.
+	 * @see awaitClosure
+	 */
+	suspend fun open( baseUrl: String, version: Int = configuration.discord.api.version ) {
+		val url = URI.create( "$baseUrl?v=$version&encoding=json" )
+
+		if ( webSocket != null ) {
+			DiscordRelay.LOGGER.info( "Closing existing WebSocket connection..." )
+			close( WebSocketCloseCode.GoingAway, "Closing existing connection." )
+		}
+
+		DiscordRelay.LOGGER.info( "Opening new WebSocket connection to '$url'..." )
+		connectionClosureConfirmation = CompletableDeferred()
+		webSocket = HTTP.startWebSocketConnection( url, configuration.http.timeoutSeconds, Listener() )
 	}
 
-	suspend fun open() {
-		if ( isOpen.get() ) throw IllegalStateException( "Gateway already open" )
+	/**
+	 * Closes the underlying WebSocket connection.
+	 * @param code The WebSocket close code. https://www.rfc-editor.org/rfc/rfc6455.html#section-7.4.1
+	 * @param reason The human-readable reason for closing the connection.
+	 */
+	suspend fun close( code: Int = WebSocketCloseCode.Normal, reason: String = "Unknown." ) {
+		DiscordRelay.LOGGER.info( "Closing WebSocket connection with code $code & reason '$reason'..." )
+		webSocket?.sendClose( code, reason )?.await()
 
-		DiscordRelay.LOGGER.info( "opening" )
-
-		webSocket = HTTP.createWebSocket( URI.create( "$webSocketUrl?v=${ configuration.discord.api.version }&encoding=json" ), Listener(), configuration )
-	}
-
-	suspend fun close() {
-		val webSocket = webSocket ?: throw IllegalStateException( "Gateway not initialized" )
-		if ( !isOpen.get() ) throw IllegalStateException( "Gateway not open" )
-
-		DiscordRelay.LOGGER.info( "closing" )
-
-		webSocket.sendClose( WebSocket.NORMAL_CLOSURE, "Goodbye." ).await()
-
-		isOpen.set( false )
-
+		DiscordRelay.LOGGER.info( "Cancelling coroutines..." )
 		coroutineScope.cancel()
+
+		DiscordRelay.LOGGER.info( "Confirming closure..." )
+		connectionClosureConfirmation?.complete( code )
 	}
 
-	// https://discord.com/developers/docs/topics/gateway#sending-heartbeats
-	private var heartbeatJob: Job? = null
+	/**
+	 * Waits for a confirmation of WebSocket closure.
+	 * @return The WebSocket close code, if a connection was active.
+	 */
+	suspend fun awaitClosure(): Int? {
+		DiscordRelay.LOGGER.info( "Waiting for closure confirmation..." )
+		val closeCode = connectionClosureConfirmation?.await()
+		DiscordRelay.LOGGER.info( "Closure confirmed with code $closeCode." )
+		return closeCode
+	}
+
+	// Starts heartbeating in the background
 	private fun startHeartbeating( webSocket: WebSocket, interval: Long ) {
-		heartbeatJob?.cancel()
+		if ( heartbeatJob != null ) {
+			DiscordRelay.LOGGER.info( "Cancelling existing background heartbeating job..." )
+			heartbeatJob?.cancel()
+		}
 
-		var isFirstHeartbeat = true
-
+		DiscordRelay.LOGGER.info( "Starting new background heartbeating job..." )
 		heartbeatJob = coroutineScope.launch {
-			while ( isOpen.get() ) {
-				if ( isFirstHeartbeat ) {
-					val firstInterval = ( interval * Random.nextFloat() ).toLong()
-					DiscordRelay.LOGGER.info( "waiting $firstInterval ms until first heartbeat..." )
-					delay( firstInterval )
-					isFirstHeartbeat = false
-				} else {
-					DiscordRelay.LOGGER.info( "waiting $interval ms until next heartbeat..." )
-					delay( interval )
-				}
-
-				// todo: data class for heartbeat
-				val heartbeatJsonPayload = JSON.encodeToString( buildJsonObject {
-					put( "op", OperationCodes.Heartbeat.code )
-					put( "d", sequenceNumber )
-				} )
-				DiscordRelay.LOGGER.info( "heartbeating!!! ($sequenceNumber): '$heartbeatJsonPayload'" )
-				webSocket.sendText( heartbeatJsonPayload, true ).await()
-				DiscordRelay.LOGGER.info( "did heartbeat (wait for ack now)" )
-			}
+			heartbeatLoop( webSocket, interval )
 		}
 	}
 
-	private fun processMessage( webSocket: WebSocket, text: String ) {
-		val payload = JSON.decodeFromString<GatewayEventPayload>( text )
-		DiscordRelay.LOGGER.info( "${ payload.operationCode }, ${ payload.sequenceNumber }, ${ payload.eventName }: '${ JSON.encodeToString( payload.eventData ) }'" )
+	// Sends heartbeats on an interval - https://discord.com/developers/docs/topics/gateway#sending-heartbeats
+	private suspend fun heartbeatLoop( webSocket: WebSocket, regularInterval: Long ) {
+		val initialInterval = ( regularInterval * Random.nextFloat() ).toLong()
+		DiscordRelay.LOGGER.info( "Waiting $initialInterval milliseconds for the initial heartbeat..." )
+		delay( initialInterval )
 
-		if ( payload.sequenceNumber != null ) {
-			sequenceNumber = payload.sequenceNumber
-			DiscordRelay.LOGGER.info( "new seq number $sequenceNumber" )
-		}
+		sendHeartbeat()
 
-		when ( payload.operationCode ) {
-			OperationCodes.Ready.code -> {
-				DiscordRelay.LOGGER.info( "we is ready" )
-				// todo
-			}
+		while ( !webSocket.isOutputClosed ) {
+			DiscordRelay.LOGGER.info( "Waiting $regularInterval milliseconds for the next heartbeat..." )
+			delay( regularInterval )
 
-			OperationCodes.Hello.code -> {
-				if ( payload.eventData == null ) throw java.lang.IllegalStateException( "Received initial hello/opcode 10 payload without data" )
-
-				val heartbeatInterval = JSON.decodeFromJsonElement<GatewayHello>( payload.eventData ).heartbeatInterval
-				DiscordRelay.LOGGER.info( "hello there, imma heartbeat every $heartbeatInterval ms" )
-				startHeartbeating( webSocket, heartbeatInterval )
-
-				// https://discord.com/developers/docs/topics/gateway#identifying
-				// https://discord.com/developers/docs/topics/gateway-events#identify-identify-structure
-				DiscordRelay.LOGGER.info( "i should identify..." )
-				// todo: data class for identify
-				val identifyJsonPayload = JSON.encodeToString( buildJsonObject {
-					put( "op", OperationCodes.Identify.code )
-					putJsonObject( "d" ) {
-						put( "token", configuration.discord.application.token )
-						putJsonObject( "properties" ) {
-							put( "os", "Minecraft Server" ) // todo: use user agent prefix
-							put( "browser", "viral32111's discord relay" )
-							put( "device", "viral32111's discord relay" )
-						}
-						put( "compress", false )
-						put( "intents", 1 shl 9 ) // guild messages - https://discord.com/developers/docs/topics/gateway#gateway-intents
-					}
-				} )
-				DiscordRelay.LOGGER.info( "identifying!!! ($sequenceNumber): '$identifyJsonPayload'" )
-				coroutineScope.launch {
-					webSocket.sendText(identifyJsonPayload, true).await()
-				}
-			}
-
-			OperationCodes.Reconnect.code -> {
-				DiscordRelay.LOGGER.info( "discord told us to reconnect" )
-				webSocket.sendClose( WebSocket.NORMAL_CLOSURE, "See you soon." )
-				coroutineScope.launch { reconnect() }
-			}
-
-			OperationCodes.InvalidSession.code -> {
-				DiscordRelay.LOGGER.info( "gg our session is invalid" )
-				webSocket.sendClose( WebSocket.NORMAL_CLOSURE, "See you soon." )
-				coroutineScope.launch { reconnect() }
-			}
-
-			OperationCodes.Heartbeat.code -> {
-				DiscordRelay.LOGGER.info( "discord begs for a heartbeat" )
-				// todo
-			}
-
-			OperationCodes.HeartbeatAcknowledgement.code -> {
-				DiscordRelay.LOGGER.info( "discord loves our heartbeat" )
-				// todo
-			}
-
-			else -> DiscordRelay.LOGGER.info( "ignoring operation code ${ payload.operationCode }" )
+			sendHeartbeat()
 		}
 	}
 
+	// Sends a heartbeat event to Discord - https://discord.com/developers/docs/topics/gateway-events#heartbeat
+	private suspend fun sendHeartbeat() {
+		heartbeatAcknowledgementConfirmation = CompletableDeferred()
+
+		DiscordRelay.LOGGER.info( "Sending heartbeat at sequence number $sequenceNumber..." )
+		sendEvent( Gateway.Event.OperationCode.Heartbeat, sequenceNumber )
+
+		try {
+			withTimeout( Duration.ofSeconds( configuration.discord.gateway.heartbeatTimeoutSeconds ) ) {
+				DiscordRelay.LOGGER.info( "Waiting for heartbeat acknowledgement..." )
+				heartbeatAcknowledgementConfirmation?.await()
+				DiscordRelay.LOGGER.info( "Received heartbeat acknowledgement!" )
+			}
+		} catch ( exception: TimeoutCancellationException ) {
+			DiscordRelay.LOGGER.warn( "Timed out while waiting for a heartbeat acknowledgement!" )
+
+			DiscordRelay.LOGGER.info( "Closing WebSocket connection..." )
+			close( WebSocketCloseCode.ProtocolError, "No heartbeat acknowledgement." )
+		}
+	}
+
+	// Sends an identify event to Discord - https://discord.com/developers/docs/topics/gateway#identifying
+	private suspend fun sendIdentify() {
+		DiscordRelay.LOGGER.info( "Sending identification..." )
+		sendEvent( Gateway.Event.OperationCode.Identify, Gateway.Event.Data.Identify(
+			applicationToken = configuration.discord.application.token,
+			intents = 1 shl 9, // Server messages - https://discord.com/developers/docs/topics/gateway#gateway-intents
+			connectionProperties = Gateway.Event.Data.Identify.ConnectionProperties(
+				operatingSystemName = "Minecraft Server",
+				browserName = "viral32111's discord relay",
+				deviceName = "viral32111's discord relay"
+			)
+		) )
+	}
+
+	// Sends an event to Discord - https://discord.com/developers/docs/topics/gateway-events#send-events
+	private suspend fun sendEvent( operationCode: Int, data: Any? ) {
+		val jsonPayload = JSON.encodeToString( Gateway.Event(
+			operationCode = operationCode,
+			data = JSON.encodeToJsonElement( data )
+		) )
+
+		DiscordRelay.LOGGER.info( "Sending JSON payload '$jsonPayload' over WebSocket..." )
+		webSocket?.sendText( jsonPayload, true )?.await()
+	}
+
+	// https://discord.com/developers/docs/topics/gateway-events#hello
+	private fun handleHelloEvent( webSocket: WebSocket, data: JsonElement? ) {
+		if ( data == null ) throw IllegalStateException( "Received Gateway Hello event without data" )
+
+		val heartbeatInterval = JSON.decodeFromJsonElement<Gateway.Event.Data.Hello>( data ).heartbeatInterval
+		startHeartbeating( webSocket, heartbeatInterval )
+
+		coroutineScope.launch {
+			sendIdentify()
+		}
+	}
+
+	// https://discord.com/developers/docs/topics/gateway-events#ready
+	private fun handleReadyEvent( webSocket: WebSocket, data: JsonElement? ) {
+		if ( data == null ) throw IllegalStateException( "Received Gateway Ready event without data" )
+
+		DiscordRelay.LOGGER.info( "We're ready." )
+
+		// TODO: Use event data
+	}
+
+	// https://discord.com/developers/docs/topics/gateway-events#reconnect
+	private fun handleReconnectEvent() {
+		DiscordRelay.LOGGER.info( "We need to reconnect!" )
+
+		coroutineScope.launch {
+			close( WebSocketCloseCode.GoingAway, "Told to reconnect." )
+			// TODO: reconnect()
+		}
+	}
+
+	private fun handleInvalidSessionEvent() {
+		DiscordRelay.LOGGER.warn( "Our session is invalid!" )
+
+		coroutineScope.launch {
+			close( WebSocketCloseCode.GoingAway, "Session is invalid." )
+			// TODO: reconnect()
+		}
+	}
+
+	private fun handleHeartbeat() {
+		DiscordRelay.LOGGER.info( "Heartbeat requested." )
+
+		coroutineScope.launch {
+			sendHeartbeat()
+		}
+	}
+
+	private fun handleHeartbeatAcknowledgement() {
+		DiscordRelay.LOGGER.info( "Heartbeat acknowledged." )
+		heartbeatAcknowledgementConfirmation?.complete( Unit )
+	}
+
+	private fun handleEvent( webSocket: WebSocket, message: String ) {
+		val event = JSON.decodeFromString<Gateway.Event>( message )
+
+		if ( event.sequenceNumber != null ) {
+			DiscordRelay.LOGGER.info( "Incremented sequence number from $sequenceNumber to ${ event.sequenceNumber }." )
+			sequenceNumber = event.sequenceNumber
+		}
+
+		when ( event.operationCode ) {
+			Gateway.Event.OperationCode.Ready -> handleReadyEvent( webSocket, event.data )
+			Gateway.Event.OperationCode.Hello -> handleHelloEvent( webSocket, event.data )
+			Gateway.Event.OperationCode.Reconnect -> handleReconnectEvent()
+			Gateway.Event.OperationCode.InvalidSession -> handleInvalidSessionEvent()
+			Gateway.Event.OperationCode.Heartbeat -> handleHeartbeat()
+			Gateway.Event.OperationCode.HeartbeatAcknowledgement -> handleHeartbeatAcknowledgement()
+
+			else -> DiscordRelay.LOGGER.warn( "Ignoring Gateway event ${ event.operationCode } (${ event.name }: ${ JSON.encodeToString( event.data ) })." )
+		}
+	}
+
+	/*
 	private suspend fun reconnect() {
 		val ms = ( 2.0.pow( reconnectCount ) * 1000 ).toLong()
 		DiscordRelay.LOGGER.info( "waiting $ms ms before reconnecting" )
@@ -172,42 +247,34 @@ class Gateway( private val webSocketUrl: String, private val configuration: Conf
 
 		reconnectCount++
 	}
+	*/
 
 	private inner class Listener: WebSocket.Listener {
-		private val textBuilder = StringBuilder()
+		private val messageBuilder = StringBuilder()
 
 		override fun onOpen( webSocket: WebSocket ) {
-			DiscordRelay.LOGGER.info( "opened" )
-
-			isOpen.set( true )
-
+			DiscordRelay.LOGGER.info( "WebSocket connection opened." )
 			webSocket.request( 1 )
 		}
 
-		override fun onClose( webSocket: WebSocket, statusCode: Int, reason: String? ): CompletionStage<*> {
-			DiscordRelay.LOGGER.info( "closed: $statusCode ($reason)" )
+		override fun onClose( webSocket: WebSocket, code: Int, reason: String? ): CompletionStage<*> {
+			DiscordRelay.LOGGER.info( "WebSocket connection closed with code $code & reason '$reason'." )
 
-			isOpen.set( false )
-
-			// todo: dont reconnect if we requested the close
-			DiscordRelay.LOGGER.info( "we need to reconnect" )
-			coroutineScope.launch { reconnect() }
+			// TODO: check code against https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-close-event-codes
+			// TODO: don't auto-reconnect if we requested the close
+			// TODO: coroutineScope.launch { reconnect() }
 
 			return CompletableFuture.completedFuture( null )
 		}
 
-		override fun onText( webSocket: WebSocket, data: CharSequence?, last: Boolean ): CompletionStage<*>? {
-			DiscordRelay.LOGGER.info( "received text chunk" )
+		override fun onText( webSocket: WebSocket, data: CharSequence?, isLastMessage: Boolean ): CompletionStage<*>? {
+			DiscordRelay.LOGGER.info( "Received text chunk of ${ data?.length } character(s)." )
 
-			textBuilder.append( data )
+			messageBuilder.append( data )
 
-			if ( last ) {
-				val text = textBuilder.toString()
-				textBuilder.clear()
-
-				DiscordRelay.LOGGER.info( "received text: '$text'" )
-
-				processMessage( webSocket, text )
+			if ( isLastMessage ) {
+				handleEvent( webSocket, messageBuilder.toString() )
+				messageBuilder.clear()
 			}
 
 			webSocket.request( 1 )
@@ -216,13 +283,9 @@ class Gateway( private val webSocketUrl: String, private val configuration: Conf
 		}
 
 		override fun onError( webSocket: WebSocket, error: Throwable? ) {
-			DiscordRelay.LOGGER.error( "Gateway error: '${ error }'" )
+			DiscordRelay.LOGGER.error( "WebSocket error: '$error'" )
 
-			// todo: are we closed?
-			isOpen.set( false )
-
-			DiscordRelay.LOGGER.info( "should probably reconnect" )
-			coroutineScope.launch { reconnect() }
+			// TODO: coroutineScope.launch { reconnect() }
 		}
 	}
 }

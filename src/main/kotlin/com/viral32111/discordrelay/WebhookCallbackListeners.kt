@@ -77,11 +77,6 @@ fun registerWebhookCallbackListeners( configuration: Configuration ) {
 				API.sendWebhookEmbed( logWebhookIdentifier, logWebhookToken, embedBuilder.build() )
 			}
 		}
-
-		DiscordRelay.coroutineScope.launch {
-			val gateway = DiscordRelay.gateway ?: throw IllegalStateException( "Gateway not initialized at time of server started" )
-			gateway.open()
-		}
 	}
 
 	ServerLifecycleEvents.SERVER_STOPPING.register { server ->
@@ -115,11 +110,6 @@ fun registerWebhookCallbackListeners( configuration: Configuration ) {
 			} else {
 				API.sendWebhookEmbed( logWebhookIdentifier, logWebhookToken, embedBuilder.build() )
 			}
-		}
-
-		DiscordRelay.coroutineScope.launch {
-			val gateway = DiscordRelay.gateway ?: throw IllegalStateException( "Gateway not initialized at time of server stopping" )
-			gateway.close()
 		}
 	}
 

@@ -27,7 +27,6 @@ class DiscordRelay: DedicatedServerModInitializer {
 		const val CONFIGURATION_FILE_NAME = "$MOD_ID.json"
 
 		var configuration = Configuration()
-		var gateway: Gateway? = null
 
 		val coroutineScope = CoroutineScope( Dispatchers.IO )
 	}
@@ -45,15 +44,26 @@ class DiscordRelay: DedicatedServerModInitializer {
 
 		registerWebhookCallbackListeners( configuration )
 
-		ServerLifecycleEvents.SERVER_STOPPED.register {
-			coroutineScope.cancel()
+		ServerLifecycleEvents.SERVER_STARTING.register {
+			val gateway = Gateway( configuration )
+
+			coroutineScope.launch {
+				val gatewayUrl = API.getGateway().url
+				LOGGER.info( "Discord Gateway URL: '${ gatewayUrl }'" )
+
+				gateway.open( gatewayUrl )
+				gateway.awaitClosure()
+			}
+
+			ServerLifecycleEvents.SERVER_STOPPING.register {
+				coroutineScope.launch {
+					gateway.close()
+				}
+			}
 		}
 
-		coroutineScope.launch {
-			val gatewayWebSocketUrl = API.getGateway().url
-			LOGGER.info( "Discord Gateway URL: '${ gatewayWebSocketUrl }'" )
-
-			gateway = Gateway( gatewayWebSocketUrl, configuration )
+		ServerLifecycleEvents.SERVER_STOPPED.register {
+			coroutineScope.cancel()
 		}
 	}
 

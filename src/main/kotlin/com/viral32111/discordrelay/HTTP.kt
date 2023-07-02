@@ -11,7 +11,7 @@ import java.net.http.WebSocket
 import java.time.Duration
 
 object HTTP {
-	private lateinit var httpClient: HttpClient
+	lateinit var httpClient: HttpClient
 
 	private val defaultHttpRequestHeaders: MutableMap<String, String> = mutableMapOf(
 		"Accept" to "*/*"
@@ -64,12 +64,12 @@ object HTTP {
 		return httpResponse
 	}
 
-	suspend fun createWebSocket( uri: URI, listener: WebSocket.Listener, configuration: Configuration ): WebSocket {
+	suspend fun startWebSocketConnection( url: URI, timeoutSeconds: Long, listener: WebSocket.Listener ): WebSocket {
 		if ( !::httpClient.isInitialized ) throw IllegalStateException( "HTTP client not initialized" )
 
 		return httpClient.newWebSocketBuilder()
-			.connectTimeout( Duration.ofSeconds( configuration.http.timeoutSeconds.toLong() ) )
-			.buildAsync( uri, listener )
+			.connectTimeout( Duration.ofSeconds( timeoutSeconds ) )
+			.buildAsync( url, listener )
 			.await()
 	}
 
