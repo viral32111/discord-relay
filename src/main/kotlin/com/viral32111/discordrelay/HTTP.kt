@@ -11,7 +11,7 @@ import java.net.http.WebSocket
 import java.time.Duration
 
 object HTTP {
-	lateinit var httpClient: HttpClient
+	private lateinit var httpClient: HttpClient
 
 	private val defaultHttpRequestHeaders: MutableMap<String, String> = mutableMapOf(
 		"Accept" to "*/*"
@@ -32,10 +32,10 @@ object HTTP {
 			"Minecraft/${ Version.minecraft() }",
 			"Java/${ Version.java() }"
 		).joinToString( " " )
-		DiscordRelay.LOGGER.info( "HTTP User Agent: '${ defaultHttpRequestHeaders[ "User-Agent" ] }'" )
+		DiscordRelay.LOGGER.debug( "HTTP User Agent: '${ defaultHttpRequestHeaders[ "User-Agent" ] }'" )
 
 		defaultHttpRequestHeaders[ "From" ] = configuration.http.fromAddress
-		DiscordRelay.LOGGER.info( "HTTP From Address: '${ defaultHttpRequestHeaders[ "From" ] }'" )
+		DiscordRelay.LOGGER.debug( "HTTP From Address: '${ defaultHttpRequestHeaders[ "From" ] }'" )
 	}
 
 	suspend fun request( method: String, url: String, headers: Map<String, String>? = null, body: String? = null, formData: FormData? = null ): HttpResponse<String> {
@@ -56,10 +56,10 @@ object HTTP {
 		headers?.forEach( httpRequestBuilder::header )
 
 		val httpRequest = httpRequestBuilder.build()
-		DiscordRelay.LOGGER.info( "HTTP Request: ${ httpRequest.method() } '${ httpRequest.uri() }' '${ body.orEmpty() }' (${ httpRequest.bodyPublisher().get().contentLength() } bytes)" )
+		DiscordRelay.LOGGER.debug( "HTTP Request: ${ httpRequest.method() } '${ httpRequest.uri() }' '${ body.orEmpty() }' (${ httpRequest.bodyPublisher().get().contentLength() } bytes)" )
 
 		val httpResponse = httpClient.sendAsync( httpRequest, HttpResponse.BodyHandlers.ofString() ).await()
-		DiscordRelay.LOGGER.info( "HTTP Response: ${ httpResponse.statusCode() } '${ httpResponse.body() }' (${ httpResponse.body().length } bytes)" )
+		DiscordRelay.LOGGER.debug( "HTTP Response: ${ httpResponse.statusCode() } '${ httpResponse.body() }' (${ httpResponse.body().length } bytes)" )
 
 		return httpResponse
 	}

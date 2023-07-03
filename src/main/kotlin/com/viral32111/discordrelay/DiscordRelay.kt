@@ -49,18 +49,20 @@ class DiscordRelay: DedicatedServerModInitializer {
 
 			coroutineScope.launch {
 				val gatewayUrl = API.getGateway().url
-				LOGGER.info( "Discord Gateway URL: '${ gatewayUrl }'" )
+				LOGGER.debug( "Discord Gateway URL: '${ gatewayUrl }'" )
 
 				while ( true ) {
+					LOGGER.info( "Opening Discord Gateway connection..." )
 					gateway.open( gatewayUrl )
 					gateway.awaitClosure()
-					LOGGER.info( "Gateway connection finished. Reconnecting..." )
+					LOGGER.info( "Discord Gateway connection closed." )
 				}
 			}
 
 			ServerLifecycleEvents.SERVER_STOPPING.register {
 				coroutineScope.launch {
-					gateway.close()
+					LOGGER.info( "Closing Discord Gateway connection..." )
+					gateway.close( WebSocketCloseCode.Normal, "Server stopping." )
 				}
 			}
 		}

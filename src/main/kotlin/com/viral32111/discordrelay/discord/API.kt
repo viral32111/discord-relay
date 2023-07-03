@@ -24,7 +24,7 @@ object API {
 
 	fun initialize( configuration: Configuration ) {
 		apiBaseUrl = "${ configuration.discord.api.baseUrl }/v${ configuration.discord.api.version }"
-		DiscordRelay.LOGGER.info( "Discord API Base URL: '$apiBaseUrl'" )
+		DiscordRelay.LOGGER.debug( "Discord API Base URL: '$apiBaseUrl'" )
 
 		defaultHttpRequestHeaders[ "Authorization" ] = "Bot ${ configuration.discord.application.token }"
 	}

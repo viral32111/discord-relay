@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+Place this file in the root of your Minecraft server and
+ specify the '-Dlog4j.configurationFile=log4j2.xml' JVM argument
+ while starting the server to see debug messages for all my mods.
+-->
+
+<Configuration status="WARN" packages="com.viral32111">
+	<Appenders>
+		<Console name="Console" target="SYSTEM_OUT">
+			<PatternLayout pattern="[%d{HH:mm:ss}] [%t/%level]: %msg%n" />
+		</Console>
+	</Appenders>
+	<Loggers>
+		<Logger name="com.viral32111" level="DEBUG" additivity="false">
+			<AppenderRef ref="Console" />
+		</Logger>
+		<Root level="INFO">
+			<AppenderRef ref="Console" />
+		</Root>
+	</Loggers>
+</Configuration>
