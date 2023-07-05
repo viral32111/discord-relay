@@ -29,11 +29,11 @@ private var serverStartTime = Instant.now()
 private val playerIPAddresses: MutableMap<UUID, String> = mutableMapOf()
 
 fun registerWebhookCallbackListeners( coroutineScope: CoroutineScope, configuration: Configuration ) {
-	val relayWebhookIdentifier = configuration.discord.channels.relay.webhook.id
+	val relayWebhookIdentifier = configuration.discord.channels.relay.webhook.identifier
 	val relayWebhookToken = configuration.discord.channels.relay.webhook.token
 	val isRelayChannelConfigured = relayWebhookIdentifier.isNotBlank() && relayWebhookToken.isNotBlank()
 
-	val logWebhookIdentifier = configuration.discord.channels.log.webhook.id
+	val logWebhookIdentifier = configuration.discord.channels.log.webhook.identifier
 	val logWebhookToken = configuration.discord.channels.log.webhook.token
 	val isLogChannelConfigured = logWebhookIdentifier.isNotBlank() && logWebhookToken.isNotBlank()
 

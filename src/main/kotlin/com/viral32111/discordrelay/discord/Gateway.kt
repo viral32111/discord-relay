@@ -28,8 +28,6 @@ import java.util.concurrent.CompletionStage
 import kotlin.math.pow
 import kotlin.random.Random
 
-// TODO: Escape markdown? - No need to escape mentions due to allowed_mentions
-
 class Gateway( private val configuration: Configuration, private val playerManager: PlayerManager ) {
 
 	// Dedicated scope for our coroutines to run on
@@ -170,7 +168,9 @@ class Gateway( private val configuration: Configuration, private val playerManag
 		DiscordRelay.LOGGER.debug( "Sending identify..." )
 		sendEvent( webSocket, Gateway.Event.OperationCode.Identify, JSON.encodeToJsonElement( Gateway.Event.Data.Identify(
 			applicationToken = configuration.discord.application.token,
-			intents = Gateway.Event.Data.Identify.Intents.GuildMessages or Gateway.Event.Data.Identify.Intents.MessageContent,
+			intents = Gateway.Event.Data.Identify.Intents.Guilds or
+					Gateway.Event.Data.Identify.Intents.GuildMessages or
+					Gateway.Event.Data.Identify.Intents.MessageContent,
 			connectionProperties = Gateway.Event.Data.Identify.ConnectionProperties(
 				operatingSystemName = configuration.http.userAgentPrefix,
 				browserName = libraryName,
@@ -235,7 +235,7 @@ class Gateway( private val configuration: Configuration, private val playerManag
 		}
 	}
 
-	private fun handleInvalidSessionEvent( webSocket: WebSocket, shouldResume: Boolean ) {
+	private fun handleInvalidSessionEvent( shouldResume: Boolean ) {
 		DiscordRelay.LOGGER.warn( "Our session is invalid!" )
 
 		coroutineScope.launch {
@@ -261,7 +261,7 @@ class Gateway( private val configuration: Configuration, private val playerManag
 	}
 
 	// https://discord.com/developers/docs/topics/gateway-events#ready
-	private fun handleReadyEvent( webSocket: WebSocket, data: Gateway.Event.Data.Ready ) {
+	private fun handleReadyEvent( data: Gateway.Event.Data.Ready ) {
 		DiscordRelay.LOGGER.info( "Ready as '${ data.user.name }#${ data.user.discriminator }' / '@${ data.user.name }' (${ data.user.identifier })." )
 		myIdentifier = data.user.identifier
 
@@ -270,10 +270,10 @@ class Gateway( private val configuration: Configuration, private val playerManag
 		DiscordRelay.LOGGER.debug( "Set session identifier to '$sessionIdentifier' & resume base URL to '$resumeBaseUrl'." )
 	}
 
-	private fun handleMessageCreate( webSocket: WebSocket, message: Gateway.Event.Data.MessageCreate ) {
+	private fun handleMessageCreate( message: Gateway.Event.Data.MessageCreate ) {
 		DiscordRelay.LOGGER.debug( "Received message '${ message.content }' (${ message.identifier }) in channel ${ message.channelIdentifier } from '@${ message.author.name }' (${ message.author.identifier })." )
 
-		if ( message.channelIdentifier != configuration.discord.channels.relay.id ) {
+		if ( message.channelIdentifier != configuration.discord.channels.relay.identifier ) {
 			DiscordRelay.LOGGER.debug( "Ignoring non-relay channel message (${ message.identifier }) from '@${ message.author.name }' (${ message.author.identifier })." )
 			return
 		}
@@ -297,11 +297,20 @@ class Gateway( private val configuration: Configuration, private val playerManag
 
 		val chatMessage: Text = Text.literal( "" )
 			.append( Text.literal( "(Discord) " ).setStyle( Style.EMPTY.withColor( TextColor.parse( "blue" ) ) ) )
-			.append( Text.literal( message.author.name ) ) // .setStyle( Style.EMPTY.withColor( TextColor.parse( "green" ) ) )
+			.append( Text.literal( message.member?.displayName ?: message.author.name ) ) // .setStyle( Style.EMPTY.withColor( TextColor.parse( "green" ) ) )
 			.append( Text.literal( ": " ) )
 			.append( Text.literal( message.content ) )
 
 		playerManager.broadcast( chatMessage, false )
+	}
+
+	private fun handleGuildCreate( guild: Gateway.Event.Data.GuildCreate ) {
+		if ( guild.identifier != configuration.discord.server.identifier ) {
+			DiscordRelay.LOGGER.debug( "Ignoring guild create event for guild '${ guild.name }' (${ guild.identifier })." )
+			return
+		}
+
+		// TODO: Lookup all roles to get role colours and create hashmap of IDs to role colours
 	}
 
 	private fun processMessage( webSocket: WebSocket, message: String ) {
@@ -321,7 +330,7 @@ class Gateway( private val configuration: Configuration, private val playerManag
 			Gateway.Event.OperationCode.Reconnect -> handleReconnectEvent()
 			Gateway.Event.OperationCode.InvalidSession -> {
 				if ( event.data == null ) throw IllegalStateException( "Received Gateway invalid session operation '${ event.name }' without data" )
-				handleInvalidSessionEvent( webSocket, JSON.decodeFromJsonElement<Boolean>( event.data ) )
+				handleInvalidSessionEvent( JSON.decodeFromJsonElement<Boolean>( event.data ) )
 			}
 			Gateway.Event.OperationCode.Heartbeat -> handleHeartbeat( webSocket )
 			Gateway.Event.OperationCode.HeartbeatAcknowledgement -> handleHeartbeatAcknowledgement()
@@ -331,8 +340,9 @@ class Gateway( private val configuration: Configuration, private val playerManag
 				if ( event.data == null ) throw IllegalStateException( "Received Gateway event '${ event.name }' without data" )
 
 				when ( event.name ) {
-					Gateway.Event.Name.Ready -> handleReadyEvent( webSocket, JSON.decodeFromJsonElement<Gateway.Event.Data.Ready>( event.data ) )
-					Gateway.Event.Name.MessageCreate -> handleMessageCreate( webSocket, JSON.decodeFromJsonElement<Gateway.Event.Data.MessageCreate>( event.data ) )
+					Gateway.Event.Name.Ready -> handleReadyEvent( JSON.decodeFromJsonElement<Gateway.Event.Data.Ready>( event.data ) )
+					Gateway.Event.Name.MessageCreate -> handleMessageCreate( JSON.decodeFromJsonElement<Gateway.Event.Data.MessageCreate>( event.data ) )
+					Gateway.Event.Name.GuildCreate -> handleGuildCreate( JSON.decodeFromJsonElement<Gateway.Event.Data.GuildCreate>( event.data ) )
 
 					else -> DiscordRelay.LOGGER.warn( "Ignoring Gateway event '${ event.name }' with data '${ JSON.encodeToString( event.data ) }'." )
 				}
@@ -395,7 +405,7 @@ class Gateway( private val configuration: Configuration, private val playerManag
 			DiscordRelay.LOGGER.debug( "Cancelling gateway coroutines..." )
 			coroutineScope.cancel()
 
-			// TODO: check code against https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-close-event-codes
+			// TODO: Check code against https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-close-event-codes
 			if ( code == WebSocketCloseCode.GoingAway || code == WebSocketCloseCode.ProtocolError ) {
 				DiscordRelay.LOGGER.debug( "Reconnecting due to non-1000 close code..." )
 				coroutineScope.launch {

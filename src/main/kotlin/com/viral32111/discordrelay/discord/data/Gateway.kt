@@ -23,6 +23,7 @@ data class Gateway(
 		object Name {
 			const val Ready = "READY"
 			const val MessageCreate = "MESSAGE_CREATE"
+			const val GuildCreate = "GUILD_CREATE"
 		}
 
 		// https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-opcodes
@@ -63,6 +64,7 @@ data class Gateway(
 
 				// https://discord.com/developers/docs/topics/gateway#gateway-intents
 				object Intents {
+					const val Guilds = 1 shl 0
 					const val GuildMessages = 1 shl 9
 					const val MessageContent = 1 shl 15
 				}
@@ -74,6 +76,7 @@ data class Gateway(
 			data class Ready(
 				@Required @SerialName( "v" ) val apiVersion: Int,
 				@Required val user: User,
+				@Required val guilds: List<Guild>,
 				@Required @SerialName( "session_id" ) val sessionIdentifier: String,
 				@Required @SerialName( "resume_gateway_url" ) val resumeUrl: String
 			)
@@ -96,6 +99,15 @@ data class Gateway(
 				@Required @SerialName( "token" ) val applicationToken: String,
 				@Required @SerialName( "session_id" ) val sessionIdentifier: String,
 				@Required @SerialName( "seq" ) val sequenceNumber: Int
+			)
+
+			// https://discord.com/developers/docs/topics/gateway-events#guild-create
+			// https://discord.com/developers/docs/resources/guild#guild-object
+			@Serializable
+			data class GuildCreate(
+				@Required @SerialName( "id" ) val identifier: String,
+				@Required val name: String,
+				@Required val roles: List<Guild.Role>
 			)
 
 		}

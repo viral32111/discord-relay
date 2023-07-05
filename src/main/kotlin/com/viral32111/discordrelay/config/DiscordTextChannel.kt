@@ -6,6 +6,6 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class DiscordTextChannel(
-	@Required @SerialName( "id" ) val id: String = "",
+	@Required @SerialName( "id" ) val identifier: String = "",
 	@Required @SerialName( "webhook" ) val webhook: DiscordWebhook = DiscordWebhook(),
 )

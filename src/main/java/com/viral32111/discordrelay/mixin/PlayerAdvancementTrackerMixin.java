@@ -15,11 +15,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin( PlayerAdvancementTracker.class )
 public class PlayerAdvancementTrackerMixin {
 
-	@Shadow
-	private ServerPlayerEntity owner;
+	@Shadow private ServerPlayerEntity owner;
 
-	@Shadow
-	public AdvancementProgress getProgress( Advancement advancement ) { return null; }
+	@SuppressWarnings( "SameReturnValue" )
+	@Shadow public AdvancementProgress getProgress( Advancement advancement ) { return null; }
 
 	@Inject( method = "grantCriterion", at = @At( "RETURN" ) )
 	private void grantCriterion( Advancement advancement, String criterionName, CallbackInfoReturnable<Boolean> info ) {

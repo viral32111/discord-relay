@@ -15,8 +15,6 @@ import kotlinx.serialization.json.encodeToJsonElement
 import java.nio.file.Files
 import java.nio.file.Path
 
-// TODO: Rate limiting
-
 object API {
 	private lateinit var apiBaseUrl: String
 

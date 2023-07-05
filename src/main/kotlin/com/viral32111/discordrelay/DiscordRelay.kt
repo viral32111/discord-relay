@@ -8,6 +8,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.MissingFieldException
 import kotlinx.serialization.encodeToString
 import net.fabricmc.api.DedicatedServerModInitializer
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
@@ -17,6 +19,13 @@ import org.slf4j.LoggerFactory
 import java.nio.file.StandardOpenOption
 import kotlin.io.path.*
 
+// TODO: Player's client information in player join #log embed
+// TODO: VPN/IP lookup in player join #log embed
+// TODO: Server whitelist status in server started #log embed
+// TODO: Discord category status
+// TODO: API call rate limiting
+// TODO: Check Gateway 4xxx close codes for resume/reconnect
+// TODO: Use role color for name color in relayed message
 
 @Suppress( "UNUSED" )
 class DiscordRelay: DedicatedServerModInitializer {
@@ -72,6 +81,7 @@ class DiscordRelay: DedicatedServerModInitializer {
 		}
 	}
 
+	@OptIn( ExperimentalSerializationApi::class )
 	private fun loadConfigurationFile(): Configuration {
 		val serverConfigurationDirectory = FabricLoader.getInstance().configDir
 		val configurationDirectory = serverConfigurationDirectory.resolve( CONFIGURATION_DIRECTORY_NAME )
@@ -79,7 +89,7 @@ class DiscordRelay: DedicatedServerModInitializer {
 
 		if ( configurationDirectory.notExists() ) {
 			configurationDirectory.createDirectory()
-			LOGGER.info( "Created directory '${ configurationDirectory }' for configuration files." )
+			LOGGER.info( "Created directory '$configurationDirectory' for configuration files." )
 		}
 
 		if ( configurationFile.notExists() ) {
@@ -90,18 +100,25 @@ class DiscordRelay: DedicatedServerModInitializer {
 				StandardOpenOption.WRITE
 			) )
 
-			LOGGER.info( "Created configuration file '${ configurationFile }'." )
+			LOGGER.info( "Created configuration file '$configurationFile'." )
 		}
 
 		// Warn about the old configuration file
 		if ( serverConfigurationDirectory.resolve( "DiscordRelay.json" ).exists() ) {
-			LOGGER.warn( "The old configuration file exists! Values should be moved to '${ configurationFile }'." )
+			LOGGER.warn( "The old configuration file exists! Values should be moved to '$configurationFile'." )
 		}
 
 		val configAsJSON = configurationFile.readText()
-		val config = PrettyJSON.decodeFromString<Configuration>( configAsJSON )
-		LOGGER.info( "Loaded configuration from file '${ configurationFile }'" )
 
-		return config
+		return try {
+			val config = PrettyJSON.decodeFromString<Configuration>( configAsJSON )
+			LOGGER.info( "Loaded configuration from file '$configurationFile'" )
+
+			config
+		} catch ( exception: MissingFieldException ) {
+			LOGGER.error( "Configuration file '$configurationFile' missing required properties: ${ exception.missingFields.joinToString( ", " ) }" )
+
+			Configuration()
+		}
 	}
 }
