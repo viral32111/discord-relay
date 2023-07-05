@@ -17,9 +17,12 @@ object HTTP {
 		"Accept" to "*/*"
 	)
 
+	// For matching up request & response logs
+	private var requestCounter = 0
+
 	fun initialize( configuration: Configuration ) {
 		httpClient = HttpClient.newBuilder()
-			.connectTimeout( Duration.ofSeconds( configuration.http.timeoutSeconds.toLong() ) )
+			.connectTimeout( Duration.ofSeconds( configuration.http.timeoutSeconds ) )
 			.build()
 
 		defaultHttpRequestHeaders[ "User-Agent" ] = arrayOf(
@@ -55,11 +58,13 @@ object HTTP {
 		defaultHttpRequestHeaders.forEach( httpRequestBuilder::header )
 		headers?.forEach( httpRequestBuilder::header )
 
+		val requestCounter = requestCounter++
+
 		val httpRequest = httpRequestBuilder.build()
-		DiscordRelay.LOGGER.debug( "HTTP Request: ${ httpRequest.method() } '${ httpRequest.uri() }' '${ body.orEmpty() }' (${ httpRequest.bodyPublisher().get().contentLength() } bytes)" )
+		DiscordRelay.LOGGER.debug( "HTTP Request #$requestCounter: ${ httpRequest.method() } '${ httpRequest.uri() }' '${ body.orEmpty() }' (${ httpRequest.bodyPublisher().get().contentLength() } bytes)" )
 
 		val httpResponse = httpClient.sendAsync( httpRequest, HttpResponse.BodyHandlers.ofString() ).await()
-		DiscordRelay.LOGGER.debug( "HTTP Response: ${ httpResponse.statusCode() } '${ httpResponse.body() }' (${ httpResponse.body().length } bytes)" )
+		DiscordRelay.LOGGER.debug( "HTTP Response #$requestCounter: ${ httpResponse.statusCode() } '${ httpResponse.body() }' (${ httpResponse.body().length } bytes)" )
 
 		return httpResponse
 	}

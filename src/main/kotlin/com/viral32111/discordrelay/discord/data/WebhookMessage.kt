@@ -2,7 +2,6 @@ package com.viral32111.discordrelay.discord.data
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonObject
 
 // https://discord.com/developers/docs/resources/webhook#execute-webhook
 

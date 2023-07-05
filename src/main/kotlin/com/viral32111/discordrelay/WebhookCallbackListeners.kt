@@ -11,6 +11,7 @@ import com.viral32111.discordrelay.helper.toHumanReadableTime
 import com.viral32111.events.callback.server.PlayerDeathCallback
 import com.viral32111.events.callback.server.PlayerJoinCallback
 import com.viral32111.events.callback.server.PlayerLeaveCallback
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents
@@ -27,7 +28,7 @@ import kotlin.math.roundToInt
 private var serverStartTime = Instant.now()
 private val playerIPAddresses: MutableMap<UUID, String> = mutableMapOf()
 
-fun registerWebhookCallbackListeners( configuration: Configuration ) {
+fun registerWebhookCallbackListeners( coroutineScope: CoroutineScope, configuration: Configuration ) {
 	val relayWebhookIdentifier = configuration.discord.channels.relay.webhook.id
 	val relayWebhookToken = configuration.discord.channels.relay.webhook.token
 	val isRelayChannelConfigured = relayWebhookIdentifier.isNotBlank() && relayWebhookToken.isNotBlank()
@@ -47,7 +48,7 @@ fun registerWebhookCallbackListeners( configuration: Configuration ) {
 		val serverPublicAddress = configuration.publicAddress.ifBlank { "${ server.serverIp }:${ server.serverPort }" }
 		val serverPublicUrl = serverUrl.format( serverPublicAddress )
 
-		if ( isRelayChannelConfigured ) DiscordRelay.coroutineScope.launch {
+		if ( isRelayChannelConfigured ) coroutineScope.launch {
 			API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
 				author = EmbedAuthor( "The server is now open!" )
 				description = "Join at [`$serverPublicAddress`]($serverPublicUrl)."
@@ -55,7 +56,7 @@ fun registerWebhookCallbackListeners( configuration: Configuration ) {
 			}
 		}
 
-		if ( isLogChannelConfigured ) DiscordRelay.coroutineScope.launch {
+		if ( isLogChannelConfigured ) coroutineScope.launch {
 			val serverIconFile = Path( server.runDirectory.absolutePath, configuration.serverIconFileName )
 
 			val embedBuilder = EmbedBuilder().apply {
@@ -82,15 +83,15 @@ fun registerWebhookCallbackListeners( configuration: Configuration ) {
 	ServerLifecycleEvents.SERVER_STOPPING.register { server ->
 		val serverUptime = ( Instant.now().epochSecond - serverStartTime.epochSecond ).toHumanReadableTime()
 
-		if ( isRelayChannelConfigured ) DiscordRelay.coroutineScope.launch {
-			API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
+		if ( isRelayChannelConfigured ) coroutineScope.launch {
+			API.sendWebhookEmbedWithoutWaiting( relayWebhookIdentifier, relayWebhookToken ) {
 				author = EmbedAuthor( "The server has closed." )
 				description = "Open for $serverUptime."
 				color = 0xFF0000 // Red
 			}
 		}
 
-		if ( isLogChannelConfigured ) DiscordRelay.coroutineScope.launch {
+		if ( isLogChannelConfigured ) coroutineScope.launch {
 			val serverIconFile = Path( server.runDirectory.absolutePath, configuration.serverIconFileName )
 
 			val embedBuilder = EmbedBuilder().apply {
@@ -106,15 +107,15 @@ fun registerWebhookCallbackListeners( configuration: Configuration ) {
 
 			if ( serverIconFile.exists() ) {
 				embedBuilder.thumbnail = EmbedThumbnail( url = "attachment://${ serverIconFile.fileName }" )
-				API.sendWebhookEmbedWithAttachment( logWebhookIdentifier, logWebhookToken, serverIconFile, embedBuilder.build() )
+				API.sendWebhookEmbedWithAttachmentWithoutWaiting( logWebhookIdentifier, logWebhookToken, serverIconFile, embedBuilder.build() )
 			} else {
-				API.sendWebhookEmbed( logWebhookIdentifier, logWebhookToken, embedBuilder.build() )
+				API.sendWebhookEmbedWithoutWaiting( logWebhookIdentifier, logWebhookToken, embedBuilder.build() )
 			}
 		}
 	}
 
 	ServerMessageEvents.CHAT_MESSAGE.register { message, player, _ ->
-		if ( isRelayChannelConfigured ) DiscordRelay.coroutineScope.launch {
+		if ( isRelayChannelConfigured ) coroutineScope.launch {
 			API.sendWebhookText( relayWebhookIdentifier, relayWebhookToken ) {
 				this.avatarUrl = avatarUrl.format( player.uuidAsString )
 				userName = player.name.string
@@ -128,7 +129,7 @@ fun registerWebhookCallbackListeners( configuration: Configuration ) {
 		val playerProfileUrl = profileUrl.format( player.uuidAsString )
 		val playerAvatarUrl = avatarUrl.format( player.uuidAsString )
 
-		if ( isRelayChannelConfigured ) DiscordRelay.coroutineScope.launch {
+		if ( isRelayChannelConfigured ) coroutineScope.launch {
 			API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
 				author = EmbedAuthor(
 					name = "${ player.name.string } joined.",
@@ -139,7 +140,7 @@ fun registerWebhookCallbackListeners( configuration: Configuration ) {
 			}
 		}
 
-		if ( isLogChannelConfigured ) DiscordRelay.coroutineScope.launch {
+		if ( isLogChannelConfigured ) coroutineScope.launch {
 			API.sendWebhookEmbed( logWebhookIdentifier, logWebhookToken ) {
 				title = "Player Joined"
 				fields = listOf(
@@ -165,7 +166,7 @@ fun registerWebhookCallbackListeners( configuration: Configuration ) {
 		val playerProfileUrl = profileUrl.format( player.uuidAsString )
 		val playerAvatarUrl = avatarUrl.format( player.uuidAsString )
 
-		if ( isRelayChannelConfigured ) DiscordRelay.coroutineScope.launch {
+		if ( isRelayChannelConfigured ) coroutineScope.launch {
 			API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
 				author = EmbedAuthor(
 					name = "${ player.name.string } left.",
@@ -176,7 +177,7 @@ fun registerWebhookCallbackListeners( configuration: Configuration ) {
 			}
 		}
 
-		if ( isLogChannelConfigured ) DiscordRelay.coroutineScope.launch {
+		if ( isLogChannelConfigured ) coroutineScope.launch {
 			API.sendWebhookEmbed( logWebhookIdentifier, logWebhookToken ) {
 				title = "Player Left"
 				fields = listOf(
@@ -203,7 +204,7 @@ fun registerWebhookCallbackListeners( configuration: Configuration ) {
 		val playerProfileUrl = profileUrl.format( player.uuidAsString )
 		val playerAvatarUrl = avatarUrl.format( player.uuidAsString )
 
-		if ( isRelayChannelConfigured ) DiscordRelay.coroutineScope.launch {
+		if ( isRelayChannelConfigured ) coroutineScope.launch {
 			API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
 				author = EmbedAuthor(
 					name = deathMessage,
@@ -214,7 +215,7 @@ fun registerWebhookCallbackListeners( configuration: Configuration ) {
 			}
 		}
 
-		if ( isLogChannelConfigured ) DiscordRelay.coroutineScope.launch {
+		if ( isLogChannelConfigured ) coroutineScope.launch {
 			API.sendWebhookEmbed( logWebhookIdentifier, logWebhookToken ) {
 				title = "Player Died"
 				fields = listOf(
@@ -248,7 +249,7 @@ fun registerWebhookCallbackListeners( configuration: Configuration ) {
 		val advancementType = advancement.display?.frame?.getType()
 		val advancementColor = advancement.display?.frame?.getColor()
 
-		if ( isRelayChannelConfigured ) DiscordRelay.coroutineScope.launch {
+		if ( isRelayChannelConfigured ) coroutineScope.launch {
 			API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
 				author = EmbedAuthor(
 					name = "${ player.name.string } $advancementText ${ advancementTitle ?: "Unknown" }.",
@@ -259,7 +260,7 @@ fun registerWebhookCallbackListeners( configuration: Configuration ) {
 			}
 		}
 
-		if ( isLogChannelConfigured ) DiscordRelay.coroutineScope.launch {
+		if ( isLogChannelConfigured ) coroutineScope.launch {
 			API.sendWebhookEmbed( logWebhookIdentifier, logWebhookToken ) {
 				title = "Player Completed Advancement"
 				fields = listOf(

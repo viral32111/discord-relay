@@ -20,11 +20,17 @@ data class Gateway(
 		@SerialName( "d" ) val data: JsonElement? = null
 	) {
 
+		object Name {
+			const val Ready = "READY"
+			const val MessageCreate = "MESSAGE_CREATE"
+		}
+
 		// https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-opcodes
 		object OperationCode {
-			const val Ready = 0
+			const val Dispatch = 0
 			const val Heartbeat = 1
 			const val Identify = 2
+			const val Resume = 6
 			const val Reconnect = 7
 			const val InvalidSession = 9
 			const val Hello = 10
@@ -55,7 +61,42 @@ data class Gateway(
 					@Required @SerialName( "device" ) val deviceName: String,
 				)
 
+				// https://discord.com/developers/docs/topics/gateway#gateway-intents
+				object Intents {
+					const val GuildMessages = 1 shl 9
+					const val MessageContent = 1 shl 15
+				}
+
 			}
+
+			// https://discord.com/developers/docs/topics/gateway-events#ready
+			@Serializable
+			data class Ready(
+				@Required @SerialName( "v" ) val apiVersion: Int,
+				@Required val user: User,
+				@Required @SerialName( "session_id" ) val sessionIdentifier: String,
+				@Required @SerialName( "resume_gateway_url" ) val resumeUrl: String
+			)
+
+			// https://discord.com/developers/docs/topics/gateway-events#message-create
+			// https://discord.com/developers/docs/resources/channel#message-object
+			@Serializable
+			data class MessageCreate(
+				@Required @SerialName( "id" ) val identifier: String,
+				@Required val type: Int,
+				@Required val content: String,
+				val member: Guild.Member? = null,
+				@Required val author: User,
+				@Required @SerialName( "channel_id" ) val channelIdentifier: String
+			)
+
+			// https://discord.com/developers/docs/topics/gateway-events#ready
+			@Serializable
+			data class Resume(
+				@Required @SerialName( "token" ) val applicationToken: String,
+				@Required @SerialName( "session_id" ) val sessionIdentifier: String,
+				@Required @SerialName( "seq" ) val sequenceNumber: Int
+			)
 
 		}
 

@@ -15,6 +15,8 @@ import kotlinx.serialization.json.encodeToJsonElement
 import java.nio.file.Files
 import java.nio.file.Path
 
+// TODO: Rate limiting
+
 object API {
 	private lateinit var apiBaseUrl: String
 
@@ -43,7 +45,7 @@ object API {
 		val httpResponse = HTTP.request( method, "$apiBaseUrl/$endpoint", httpRequestHeaders, JSON.encodeToString( payload ) )
 		if ( httpResponse.statusCode() < 200 || httpResponse.statusCode() >= 300 ) throw HTTP.HttpException( httpResponse.statusCode(), httpResponse.request().method(), httpResponse.request().uri() )
 
-		return JSON.decodeFromString( httpResponse.body() )
+		return if ( httpResponse.statusCode() == 204 ) JSON.encodeToJsonElement( "" ) else JSON.decodeFromString( httpResponse.body() )
 	}
 
 	// https://discord.com/developers/docs/topics/gateway#get-gateway-bot
@@ -80,23 +82,34 @@ object API {
 	*/
 
 	// https://discord.com/developers/docs/resources/webhook#execute-webhook
-	suspend fun sendWebhookText( identifier: String, token: String, builderBlock: WebhookMessageBuilder.() -> Unit ): Message = JSON.decodeFromJsonElement( request(
+	private suspend fun sendWebhookText( identifier: String, token: String, shouldWait: Boolean, builderBlock: WebhookMessageBuilder.() -> Unit ): JsonElement = request(
 		method = "POST",
-		endpoint = "webhooks/$identifier/$token?wait=true",
+		endpoint = "webhooks/$identifier/$token?wait=$shouldWait",
 		payload = JSON.encodeToJsonElement( WebhookMessageBuilder().apply( builderBlock ).apply { preventMentions() }.build() ) as JsonObject
-	) )
-	suspend fun sendWebhookEmbed( identifier: String, token: String, embed: Embed ): Message = JSON.decodeFromJsonElement( request(
+	)
+	suspend fun sendWebhookText( identifier: String, token: String, builderBlock: WebhookMessageBuilder.() -> Unit ): Message =
+		JSON.decodeFromJsonElement( sendWebhookText( identifier, token, true, builderBlock ) )
+	suspend fun sendWebhookTextWithoutWaiting( identifier: String, token: String, builderBlock: WebhookMessageBuilder.() -> Unit )
+		{ sendWebhookText( identifier, token, false, builderBlock ) }
+
+	private suspend fun sendWebhookEmbed( identifier: String, token: String, shouldWait: Boolean, embed: Embed ): JsonElement = request(
 		method = "POST",
-		endpoint = "webhooks/$identifier/$token?wait=true",
+		endpoint = "webhooks/$identifier/$token?wait=$shouldWait",
 		payload = JSON.encodeToJsonElement( createWebhookMessage {
 			preventMentions()
 			embeds = listOf( embed )
 		} ) as JsonObject
-	) )
-	suspend fun sendWebhookEmbed( identifier: String, token: String, builderBlock: EmbedBuilder.() -> Unit ) =
-		sendWebhookEmbed( identifier, token, EmbedBuilder().apply( builderBlock ).build() )
+	)
+	suspend fun sendWebhookEmbed( identifier: String, token: String, embed: Embed ): Message =
+		JSON.decodeFromJsonElement( sendWebhookEmbed( identifier, token, true, embed ) )
+	suspend fun sendWebhookEmbed( identifier: String, token: String, builderBlock: EmbedBuilder.() -> Unit ): Message =
+		JSON.decodeFromJsonElement( sendWebhookEmbed( identifier, token, true, EmbedBuilder().apply( builderBlock ).build() ) )
+	suspend fun sendWebhookEmbedWithoutWaiting( identifier: String, token: String, embed: Embed )
+		{ sendWebhookEmbed( identifier, token, false, embed ) }
+	suspend fun sendWebhookEmbedWithoutWaiting( identifier: String, token: String, builderBlock: EmbedBuilder.() -> Unit )
+		{ sendWebhookEmbed( identifier, token, false, EmbedBuilder().apply( builderBlock ).build() ) }
 
-	suspend fun sendWebhookEmbedWithAttachment( identifier: String, token: String, filePath: Path, embed: Embed ) {
+	private suspend fun sendWebhookEmbedWithAttachment( identifier: String, token: String, shouldWait: Boolean, filePath: Path, embed: Embed ): JsonElement {
 		val formData = createFormData {
 			addTextSection {
 				name = "payload_json"
@@ -117,11 +130,19 @@ object API {
 		val headers = defaultHttpRequestHeaders.toMutableMap()
 		headers[ "Content-Type" ] = "multipart/form-data; charset=utf-8; boundary=${ formData.boundary }"
 
-		val httpResponse = HTTP.request( "POST", "$apiBaseUrl/webhooks/$identifier/$token?wait=true", headers, null, formData )
+		val httpResponse = HTTP.request( "POST", "$apiBaseUrl/webhooks/$identifier/$token?wait=$shouldWait", headers, null, formData )
 		if ( httpResponse.statusCode() < 200 || httpResponse.statusCode() >= 300 ) throw HTTP.HttpException( httpResponse.statusCode(), httpResponse.request().method(), httpResponse.request().uri() )
 
-		return JSON.decodeFromString( httpResponse.body() )
+		return if ( httpResponse.statusCode() == 204 ) JSON.encodeToJsonElement( "" ) else JSON.decodeFromString( httpResponse.body() )
 	}
-	suspend fun sendWebhookEmbedWithAttachment( identifier: String, token: String, filePath: Path, builderBlock: EmbedBuilder.() -> Unit ) =
-		sendWebhookEmbedWithAttachment( identifier, token, filePath, EmbedBuilder().apply( builderBlock ).build() )
+	suspend fun sendWebhookEmbedWithAttachment( identifier: String, token: String, filePath: Path, embed: Embed ): Message =
+		JSON.decodeFromJsonElement( sendWebhookEmbedWithAttachment( identifier, token, true, filePath, embed ) )
+	suspend fun sendWebhookEmbedWithAttachment( identifier: String, token: String, filePath: Path, builderBlock: EmbedBuilder.() -> Unit ): Message =
+		JSON.decodeFromJsonElement( sendWebhookEmbedWithAttachment( identifier, token, true, filePath, EmbedBuilder().apply( builderBlock ).build() ) )
+
+	// TODO: These are useless - https://github.com/discord/discord-api-docs/issues/5099
+	suspend fun sendWebhookEmbedWithAttachmentWithoutWaiting( identifier: String, token: String, filePath: Path, embed: Embed )
+		{ sendWebhookEmbedWithAttachment( identifier, token, false, filePath, embed ) }
+	suspend fun sendWebhookEmbedWithAttachmentWithoutWaiting( identifier: String, token: String, filePath: Path, builderBlock: EmbedBuilder.() -> Unit )
+		{ sendWebhookEmbedWithAttachment( identifier, token, false, filePath, EmbedBuilder().apply( builderBlock ).build() ) }
 }

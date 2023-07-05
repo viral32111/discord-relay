@@ -17,18 +17,18 @@ import org.slf4j.LoggerFactory
 import java.nio.file.StandardOpenOption
 import kotlin.io.path.*
 
+
 @Suppress( "UNUSED" )
 class DiscordRelay: DedicatedServerModInitializer {
+	private val coroutineScope = CoroutineScope( Dispatchers.IO )
+	private var configuration = Configuration()
+
 	companion object {
 		const val MOD_ID = "discordrelay"
 		val LOGGER: Logger = LoggerFactory.getLogger( "com.viral32111.$MOD_ID" )
 
 		const val CONFIGURATION_DIRECTORY_NAME = "viral32111"
 		const val CONFIGURATION_FILE_NAME = "$MOD_ID.json"
-
-		var configuration = Configuration()
-
-		val coroutineScope = CoroutineScope( Dispatchers.IO )
 	}
 
 	override fun onInitializeServer() {
@@ -42,27 +42,27 @@ class DiscordRelay: DedicatedServerModInitializer {
 		HTTP.initialize( configuration )
 		API.initialize( configuration )
 
-		registerWebhookCallbackListeners( configuration )
+		registerWebhookCallbackListeners( coroutineScope, configuration )
 
-		ServerLifecycleEvents.SERVER_STARTING.register {
-			val gateway = Gateway( configuration )
+		ServerLifecycleEvents.SERVER_STARTED.register { server ->
+			val gateway = Gateway( configuration, server.playerManager )
 
 			coroutineScope.launch {
 				val gatewayUrl = API.getGateway().url
 				LOGGER.debug( "Discord Gateway URL: '${ gatewayUrl }'" )
 
-				while ( true ) {
+				do {
 					LOGGER.info( "Opening Discord Gateway connection..." )
 					gateway.open( gatewayUrl )
-					gateway.awaitClosure()
+					val confirmation = gateway.awaitClosure()
 					LOGGER.info( "Discord Gateway connection closed." )
-				}
+				} while ( confirmation?.isServerStopping != true )
 			}
 
 			ServerLifecycleEvents.SERVER_STOPPING.register {
 				coroutineScope.launch {
 					LOGGER.info( "Closing Discord Gateway connection..." )
-					gateway.close( WebSocketCloseCode.Normal, "Server stopping." )
+					gateway.close( WebSocketCloseCode.Normal, "Server stopping.", true )
 				}
 			}
 		}
