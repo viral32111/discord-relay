@@ -8,10 +8,10 @@ import java.time.format.DateTimeFormatter
 private val utcZone = ZoneId.of( "UTC" )
 private const val defaultFormat = "dd/MM/yyyy HH:mm:ss 'UTC'"
 
-fun getCurrentDateTimeUTC( format: String = defaultFormat ): String = ZonedDateTime.now( utcZone ).format( DateTimeFormatter.ofPattern( format ) )
+fun getCurrentDateTimeUTC( format: String = defaultFormat ): String = ZonedDateTime.now( utcZone ).format( DateTimeFormatter.ofPattern( format.ifBlank { defaultFormat } ) )
 fun getCurrentDateTimeISO8601(): String = ZonedDateTime.now( utcZone ).format( DateTimeFormatter.ISO_OFFSET_DATE_TIME )
 
-fun Instant.formatInUTC( format: String = defaultFormat ): String = DateTimeFormatter.ofPattern( format ).format( this.atZone( utcZone ) )
+fun Instant.formatInUTC( format: String = defaultFormat ): String = DateTimeFormatter.ofPattern( format.ifBlank { defaultFormat } ).format( this.atZone( utcZone ) )
 
 fun Long.toHumanReadableTime(): String = listOf(
 		this / ( 24 * 3600 ) to "day",

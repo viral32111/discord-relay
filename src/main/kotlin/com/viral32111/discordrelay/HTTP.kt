@@ -34,18 +34,21 @@ object HTTP {
 			"Fabric Loader/${ Version.fabricLoader() }",
 			"Minecraft/${ Version.minecraft() }",
 			"Java/${ Version.java() }"
-		).joinToString( " " )
+		).filter { it.isNotBlank() }.joinToString( " " )
 		DiscordRelay.LOGGER.debug( "HTTP User Agent: '${ defaultHttpRequestHeaders[ "User-Agent" ] }'" )
 
-		defaultHttpRequestHeaders[ "From" ] = configuration.http.fromAddress
-		DiscordRelay.LOGGER.debug( "HTTP From Address: '${ defaultHttpRequestHeaders[ "From" ] }'" )
+		if ( configuration.http.fromAddress.isNotBlank() ) {
+			defaultHttpRequestHeaders[ "From" ] = configuration.http.fromAddress
+			DiscordRelay.LOGGER.debug( "HTTP From Address: '${ defaultHttpRequestHeaders[ "From" ] }'" )
+		}
 	}
 
-	suspend fun request( method: String, url: String, headers: Map<String, String>? = null, body: String? = null, formData: FormData? = null ): HttpResponse<String> {
+	suspend fun request( method: String, url: String, headers: Map<String, String>? = null, body: String? = null, formData: FormData? = null, parameters: Map<String, String>? = null ): HttpResponse<String> {
 		if ( !::httpClient.isInitialized ) throw IllegalStateException( "HTTP client not initialized" )
 		if ( body != null && headers?.containsKey( "Content-Type" ) == false ) throw IllegalArgumentException( "HTTP content type header required for body" )
 
-		val uri = URI.create( url )
+		val queryString = if ( !parameters.isNullOrEmpty() ) "?" + parameters.map { "${ it.key }=${ it.value }" }.joinToString( "&" ) else ""
+		val uri = URI.create( url + queryString )
 		val bodyPublisher = if ( formData != null ) HttpRequest.BodyPublishers.ofByteArray( formData.toByteArray() )
 			else if ( !body.isNullOrBlank() ) HttpRequest.BodyPublishers.ofString( body )
 			else HttpRequest.BodyPublishers.noBody()
@@ -84,10 +87,10 @@ object HTTP {
 		const val Patch = "PATCH"
 	}
 
-	data class HttpException(
-		val responseStatusCode: Int,
-		val requestMethod: String,
-		val requestUri: URI
+	class HttpException(
+		private val responseStatusCode: Int,
+		private val requestMethod: String,
+		private val requestUri: URI
 	) : Exception() {
 		override val message: String get() = "$requestMethod '$requestUri' -> $responseStatusCode"
 	}

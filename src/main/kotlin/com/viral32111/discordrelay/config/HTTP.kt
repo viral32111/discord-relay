@@ -8,5 +8,5 @@ import kotlinx.serialization.Serializable
 data class HTTP(
 	@Required @SerialName( "user-agent-prefix" ) val userAgentPrefix: String = "Minecraft Server (https://example.com; contact@example.com)",
 	@Required @SerialName( "from-address" ) val fromAddress: String = "contact@example.com",
-	@SerialName( "timeout-seconds" ) val timeoutSeconds: Long = 5
+	@Required @SerialName( "timeout-seconds" ) val timeoutSeconds: Long = 5
 )

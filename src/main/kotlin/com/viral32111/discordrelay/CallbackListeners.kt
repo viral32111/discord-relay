@@ -38,8 +38,10 @@ fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Co
 	val isLogChannelConfigured = logWebhookIdentifier.isNotBlank() && logWebhookToken.isNotBlank()
 
 	val statusCategoryIdentifier = configuration.discord.channels.status.identifier
-	val statusCategoryName = configuration.discord.channels.status.identifier
+	val statusCategoryName = configuration.discord.channels.status.name
 	val isStatusCategoryConfigured = statusCategoryIdentifier.isNotBlank() && statusCategoryName.isNotBlank()
+
+	val isProxyCheckConfigured = configuration.thirdParty.proxyCheck.api.key.isNotBlank()
 
 	val avatarUrl = configuration.thirdParty.avatarUrl
 	val profileUrl = configuration.thirdParty.profileUrl
@@ -138,14 +140,18 @@ fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Co
 	}
 
 	PlayerJoinCallback.EVENT.register { connection, player ->
-		val playerIPAddress = playerIPAddresses.put( player.uuid, ( connection.address as InetSocketAddress ).address.hostAddress )
+		val playerIpAddress = ( connection.address as InetSocketAddress ).address.hostAddress
+		playerIPAddresses[ player.uuid ] = playerIpAddress
+
 		val playerProfileUrl = profileUrl.format( player.uuidAsString )
 		val playerAvatarUrl = avatarUrl.format( player.uuidAsString )
 
 		coroutineScope.launch {
+			val ipAddress = if ( isProxyCheckConfigured && !ProxyCheck.isPrivate( playerIpAddress ) ) ProxyCheck.check( playerIpAddress ) else null
+
 			if ( isRelayChannelConfigured ) API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
 				author = EmbedAuthor(
-					name = "${ player.name.string } joined.",
+					name = "${ player.name.string } joined${ if ( ipAddress?.countryName?.isNotBlank() == true ) " from ${ ipAddress.countryName }" else "" }.",
 					url = playerProfileUrl,
 					iconUrl = playerAvatarUrl
 				)
@@ -158,10 +164,12 @@ fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Co
 					fields = listOf(
 						EmbedField( name = "Name", value = player.name.string, inline = true ),
 						EmbedField( name = "Nickname", value = player.getNickName() ?: "*Not set*", inline = true ),
-						EmbedField( name = "IP Address", value = "[`$playerIPAddress`](${ ipAddressUrl.format( playerIPAddress ) })", inline = true ),
-						EmbedField( name = "Operator", value = if ( player.isOperator() ) "Yes" else "No", inline = true ),
+						EmbedField( name = "Operator", value = player.isOperator().toYesNo(), inline = true ),
 						EmbedField( name = "Dimension", value = player.getDimensionName(), inline = true ),
 						EmbedField( name = "Position", value = player.pos.toHumanReadableString(), inline = true ),
+						EmbedField( name = "Location", value = if ( ipAddress != null ) "${ ipAddress.regionName?.ifBlank { "Unknown" } }, ${ ipAddress.countryName?.ifBlank { "Unknown" } } (${ ipAddress.continentName?.ifBlank { "Unknown" } })" else "*Unknown*", inline = false ),
+						EmbedField( name = "IP Address", value = "[`$playerIpAddress`](${ ipAddressUrl.format( playerIpAddress ) })", inline = true ),
+						EmbedField( name = "VPN", value = if ( ipAddress != null ) "${ ( ipAddress.isVPN || ipAddress.isProxy ).toYesNo() } (${ ipAddress.riskScore }% risk)" else "*Unknown*", inline = true ),
 						EmbedField( name = "Unique Identifier", value = "[`${ player.uuidAsString }`]($playerProfileUrl)", inline = false )
 					)
 					thumbnail = EmbedThumbnail( url = playerAvatarUrl )
@@ -243,10 +251,10 @@ fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Co
 				fields = listOf(
 					EmbedField( name = "Name", value = player.name.string, inline = true ),
 					EmbedField( name = "Nickname", value = player.getNickName() ?: "*Not set*", inline = true ),
+					EmbedField( name = "Score", value = player.score.toString(), inline = true ),
 					EmbedField( name = "Attacker", value = damageSource.attacker?.name?.string ?: "*Unknown*", inline = true ),
 					EmbedField( name = "Source", value = damageSource.source?.name?.string  ?: "*Unknown*", inline = true ),
 					EmbedField( name = "Message", value = deathMessage, inline = false ),
-					EmbedField( name = "Score", value = player.score.toString(), inline = false ),
 					EmbedField( name = "Dimension", value = player.getDimensionName(), inline = true ),
 					EmbedField( name = "Position", value = player.pos.toHumanReadableString(), inline = true ),
 					EmbedField( name = "Unique Identifier", value = "[`${ player.uuidAsString }`]($playerProfileUrl)", inline = false )
@@ -332,3 +340,6 @@ private fun Vec3d.toHumanReadableString(): String =
 	arrayOf( this.getX(), this.getY(), this.getZ() )
 		.map { it.roundToInt() }
 		.joinToString( ", " )
+
+private fun Boolean.toString( truthy: String, falsy: String ): String = if ( this ) truthy else falsy
+private fun Boolean.toYesNo(): String = this.toString( "Yes", "No" )

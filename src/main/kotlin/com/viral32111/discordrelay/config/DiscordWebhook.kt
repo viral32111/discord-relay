@@ -7,5 +7,5 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class DiscordWebhook(
 	@Required @SerialName( "id" ) val identifier: String = "",
-	@Required @SerialName( "token" ) val token: String = ""
+	@Required val token: String = ""
 )

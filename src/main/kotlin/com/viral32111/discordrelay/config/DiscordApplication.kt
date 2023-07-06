@@ -6,5 +6,5 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class DiscordApplication(
-	@Required @SerialName( "token" ) val token: String = ""
+	@Required val token: String = ""
 )

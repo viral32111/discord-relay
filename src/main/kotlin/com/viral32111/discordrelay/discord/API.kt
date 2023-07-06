@@ -34,7 +34,7 @@ object API {
 		val httpResponse = HTTP.request( method, "$apiBaseUrl/$endpoint", headers = defaultHttpRequestHeaders )
 		if ( httpResponse.statusCode() < 200 || httpResponse.statusCode() >= 300 ) throw HTTP.HttpException( httpResponse.statusCode(), httpResponse.request().method(), httpResponse.request().uri() )
 
-		return JSON.decodeFromString( httpResponse.body() )
+		return if ( httpResponse.statusCode() == 204 ) JSON.encodeToJsonElement( "" ) else JSON.decodeFromString( httpResponse.body() )
 	}
 
 	private suspend fun request( endpoint: String, payload: JsonObject, method: String = "GET" ): JsonElement {

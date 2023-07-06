@@ -361,11 +361,11 @@ class Gateway( private val configuration: Configuration, private val playerManag
 					Gateway.Event.Name.MessageCreate -> handleMessageCreate( JSON.decodeFromJsonElement<Gateway.Event.Data.MessageCreate>( event.data ) )
 					Gateway.Event.Name.GuildCreate -> handleGuildCreate( JSON.decodeFromJsonElement<Gateway.Event.Data.GuildCreate>( event.data ) )
 
-					else -> DiscordRelay.LOGGER.warn( "Ignoring Gateway event '${ event.name }' with data '${ JSON.encodeToString( event.data ) }'." )
+					else -> DiscordRelay.LOGGER.debug( "Ignoring Gateway event '${ event.name }' with data '${ JSON.encodeToString( event.data ) }'." )
 				}
 			}
 
-			else -> DiscordRelay.LOGGER.warn( "Ignoring Gateway operation ${ event.operationCode } with data '${ JSON.encodeToString( event.data ) }'." )
+			else -> DiscordRelay.LOGGER.debug( "Ignoring Gateway operation ${ event.operationCode } with data '${ JSON.encodeToString( event.data ) }'." )
 		}
 	}
 

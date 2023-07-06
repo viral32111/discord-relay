@@ -8,8 +8,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.MissingFieldException
 import kotlinx.serialization.encodeToString
 import net.fabricmc.api.DedicatedServerModInitializer
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
@@ -22,7 +20,7 @@ import kotlin.io.path.*
 // TODO: VPN/IP lookup in player join #log embed
 // TODO: Player kick/ban/pardon in #log embed
 // TODO: Banned player attempted join in #log embed
-// TODO: API call rate limiting
+// TODO: API call rate limiting - currently if a rate limit is hit, a HTTP exception is thrown and the entire mod stops working
 // TODO: Check Gateway 4xxx close codes for resume/reconnect
 
 @Suppress( "UNUSED" )
@@ -42,34 +40,34 @@ class DiscordRelay: DedicatedServerModInitializer {
 		LOGGER.info( "Discord Relay v${ Version.discordRelay() } initialized on the server." )
 
 		configuration = loadConfigurationFile()
-		if ( configuration.discord.application.token.isBlank() ) throw RuntimeException( "Discord application token is blank" )
-		if ( configuration.discord.api.baseUrl.isBlank() ) throw RuntimeException( "Discord API base URL is blank" )
-		if ( configuration.discord.api.version <= 0 ) throw RuntimeException( "Discord API version is invalid" )
 
 		HTTP.initialize( configuration )
 		API.initialize( configuration )
+		ProxyCheck.initialize( configuration )
 
-		registerCallbackListeners( coroutineScope, configuration )
+		if ( configuration.discord.application.token.isNotBlank() ) {
+			registerCallbackListeners( coroutineScope, configuration )
 
-		ServerLifecycleEvents.SERVER_STARTED.register { server ->
-			val gateway = Gateway( configuration, server.playerManager )
+			ServerLifecycleEvents.SERVER_STARTED.register { server ->
+				val gateway = Gateway( configuration, server.playerManager )
 
-			coroutineScope.launch {
-				val gatewayUrl = API.getGateway().url
-				LOGGER.debug( "Discord Gateway URL: '${ gatewayUrl }'" )
-
-				do {
-					LOGGER.info( "Opening Discord Gateway connection..." )
-					gateway.open( gatewayUrl )
-					val confirmation = gateway.awaitClosure()
-					LOGGER.info( "Discord Gateway connection closed." )
-				} while ( confirmation?.isServerStopping != true )
-			}
-
-			ServerLifecycleEvents.SERVER_STOPPING.register {
 				coroutineScope.launch {
-					LOGGER.info( "Closing Discord Gateway connection..." )
-					gateway.close( WebSocketCloseCode.Normal, "Server stopping.", true )
+					val gatewayUrl = API.getGateway().url
+					LOGGER.debug( "Discord Gateway URL: '${ gatewayUrl }'" )
+
+					do {
+						LOGGER.info( "Opening Discord Gateway connection..." )
+						gateway.open( gatewayUrl )
+						val confirmation = gateway.awaitClosure()
+						LOGGER.info( "Discord Gateway connection closed." )
+					} while ( confirmation?.isServerStopping != true )
+				}
+
+				ServerLifecycleEvents.SERVER_STOPPING.register {
+					coroutineScope.launch {
+						LOGGER.info( "Closing Discord Gateway connection..." )
+						gateway.close( WebSocketCloseCode.Normal, "Server stopping.", true )
+					}
 				}
 			}
 		}
@@ -79,7 +77,6 @@ class DiscordRelay: DedicatedServerModInitializer {
 		}
 	}
 
-	@OptIn( ExperimentalSerializationApi::class )
 	private fun loadConfigurationFile(): Configuration {
 		val serverConfigurationDirectory = FabricLoader.getInstance().configDir
 		val configurationDirectory = serverConfigurationDirectory.resolve( CONFIGURATION_DIRECTORY_NAME )
@@ -107,16 +104,9 @@ class DiscordRelay: DedicatedServerModInitializer {
 		}
 
 		val configAsJSON = configurationFile.readText()
+		val config = PrettyJSON.decodeFromString<Configuration>( configAsJSON )
+		LOGGER.info( "Loaded configuration from file '$configurationFile'" )
 
-		return try {
-			val config = PrettyJSON.decodeFromString<Configuration>( configAsJSON )
-			LOGGER.info( "Loaded configuration from file '$configurationFile'" )
-
-			config
-		} catch ( exception: MissingFieldException ) {
-			LOGGER.error( "Configuration file '$configurationFile' missing required properties: ${ exception.missingFields.joinToString( ", " ) }" )
-
-			Configuration()
-		}
+		return config
 	}
 }

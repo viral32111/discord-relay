@@ -7,5 +7,5 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class DiscordCategoryChannel(
 	@Required @SerialName( "id" ) val identifier: String = "",
-	@SerialName( "name" ) val name: String = "Minecraft (%s)"
+	@Required val name: String = "Minecraft (%s)"
 )
