@@ -6,6 +6,7 @@ import com.viral32111.discordrelay.JSON
 import com.viral32111.discordrelay.WebSocketCloseCode
 import com.viral32111.discordrelay.config.Configuration
 import com.viral32111.discordrelay.discord.data.Gateway
+import com.viral32111.discordrelay.discord.data.Guild
 import com.viral32111.discordrelay.helper.Version
 import kotlinx.coroutines.*
 import kotlinx.coroutines.future.await
@@ -19,6 +20,7 @@ import net.minecraft.server.PlayerManager
 import net.minecraft.text.Style
 import net.minecraft.text.Text
 import net.minecraft.text.TextColor
+import net.minecraft.util.Formatting
 import java.io.IOException
 import java.net.URI
 import java.net.http.WebSocket
@@ -54,8 +56,9 @@ class Gateway( private val configuration: Configuration, private val playerManag
 	// Number of times we've reconnected
 	private var reconnectCount = 0
 
-	// The bot user's identifier, set when ready
+	// The bot ID & server roles, set during ready process
 	private var myIdentifier: String? = null
+	private var serverRoles: Map<String, Guild.Role>? = null
 
 	/**
 	 * Opens a WebSocket connection to the given URL, closing any existing connections beforehand.
@@ -270,6 +273,7 @@ class Gateway( private val configuration: Configuration, private val playerManag
 		DiscordRelay.LOGGER.debug( "Set session identifier to '$sessionIdentifier' & resume base URL to '$resumeBaseUrl'." )
 	}
 
+	// https://discord.com/developers/docs/topics/gateway-events#message-create
 	private fun handleMessageCreate( message: Gateway.Event.Data.MessageCreate ) {
 		DiscordRelay.LOGGER.debug( "Received message '${ message.content }' (${ message.identifier }) in channel ${ message.channelIdentifier } from '@${ message.author.name }' (${ message.author.identifier })." )
 
@@ -295,23 +299,36 @@ class Gateway( private val configuration: Configuration, private val playerManag
 
 		DiscordRelay.LOGGER.info( "Relaying Discord message '${ message.content }' (${ message.identifier}) from '@${ message.author.name }' (${ message.author.identifier })..." )
 
+		val memberRoleColor = getMemberRoleColor( message.member )
+		val playerStyle = getStyleOrDefault( memberRoleColor )
+		DiscordRelay.LOGGER.debug( "Member role color is '$memberRoleColor' & player style is '${ playerStyle.color?.rgb }'" )
+
 		val chatMessage: Text = Text.literal( "" )
-			.append( Text.literal( "(Discord) " ).setStyle( Style.EMPTY.withColor( TextColor.parse( "blue" ) ) ) )
-			.append( Text.literal( message.member?.displayName ?: message.author.name ) ) // .setStyle( Style.EMPTY.withColor( TextColor.parse( "green" ) ) )
+			.append( Text.literal( "(Discord) " ).setStyle( Style.EMPTY.withColor( TextColor.fromFormatting( Formatting.BLUE ) ) )
+			.append( Text.literal( message.member?.displayName ?: message.author.name ).setStyle( playerStyle ) ) )
 			.append( Text.literal( ": " ) )
 			.append( Text.literal( message.content ) )
 
 		playerManager.broadcast( chatMessage, false )
 	}
 
+	// https://discord.com/developers/docs/topics/gateway-events#guild-create
 	private fun handleGuildCreate( guild: Gateway.Event.Data.GuildCreate ) {
 		if ( guild.identifier != configuration.discord.server.identifier ) {
 			DiscordRelay.LOGGER.debug( "Ignoring guild create event for guild '${ guild.name }' (${ guild.identifier })." )
 			return
 		}
 
-		// TODO: Lookup all roles to get role colours and create hashmap of IDs to role colours
+		serverRoles = guild.roles.associateBy { it.identifier }
 	}
+
+	private fun getMemberRoleColor( member: Guild.Member? ): Int? = member?.roleIdentifiers
+		?.map { serverRoles?.get( it ) ?: return null }
+		?.maxByOrNull { it.position }
+		?.color
+
+	private fun getStyleOrDefault( rgb: Int?, formatting: Formatting = Formatting.GREEN ): Style =
+		if ( rgb != null ) Style.EMPTY.withColor( rgb ) else Style.EMPTY.withColor( TextColor.fromFormatting( formatting ) )
 
 	private fun processMessage( webSocket: WebSocket, message: String ) {
 		val event = JSON.decodeFromString<Gateway.Event>( message )

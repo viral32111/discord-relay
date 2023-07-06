@@ -15,7 +15,8 @@ data class Guild(
 	@Serializable
 	data class Member(
 		val user: User? = null,
-		@SerialName( "nick" ) val displayName: String? = null
+		@SerialName( "nick" ) val displayName: String? = null,
+		@Required @SerialName( "roles" ) val roleIdentifiers: List<String>,
 	)
 
 	// https://discord.com/developers/docs/topics/permissions#role-object
@@ -23,7 +24,15 @@ data class Guild(
 	data class Role(
 		@Required @SerialName( "id" ) val identifier: String,
 		@Required val name: String,
-		@Required val color: Int
+		@Required val color: Int,
+		@Required val position: Int
+	)
+
+	// https://discord.com/developers/docs/resources/channel#channel-object
+	@Serializable
+	data class Channel(
+		@Required @SerialName( "id" ) val identifier: String,
+		val name: String? = null
 	)
 
 }

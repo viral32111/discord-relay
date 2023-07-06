@@ -78,6 +78,12 @@ object HTTP {
 			.await()
 	}
 
+	object Method {
+		const val Get = "GET"
+		const val Post = "POST"
+		const val Patch = "PATCH"
+	}
+
 	data class HttpException(
 		val responseStatusCode: Int,
 		val requestMethod: String,

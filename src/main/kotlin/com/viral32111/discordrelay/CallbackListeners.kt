@@ -28,7 +28,7 @@ import kotlin.math.roundToInt
 private var serverStartTime = Instant.now()
 private val playerIPAddresses: MutableMap<UUID, String> = mutableMapOf()
 
-fun registerWebhookCallbackListeners( coroutineScope: CoroutineScope, configuration: Configuration ) {
+fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Configuration ) {
 	val relayWebhookIdentifier = configuration.discord.channels.relay.webhook.identifier
 	val relayWebhookToken = configuration.discord.channels.relay.webhook.token
 	val isRelayChannelConfigured = relayWebhookIdentifier.isNotBlank() && relayWebhookToken.isNotBlank()
@@ -36,6 +36,10 @@ fun registerWebhookCallbackListeners( coroutineScope: CoroutineScope, configurat
 	val logWebhookIdentifier = configuration.discord.channels.log.webhook.identifier
 	val logWebhookToken = configuration.discord.channels.log.webhook.token
 	val isLogChannelConfigured = logWebhookIdentifier.isNotBlank() && logWebhookToken.isNotBlank()
+
+	val statusCategoryIdentifier = configuration.discord.channels.status.identifier
+	val statusCategoryName = configuration.discord.channels.status.identifier
+	val isStatusCategoryConfigured = statusCategoryIdentifier.isNotBlank() && statusCategoryName.isNotBlank()
 
 	val avatarUrl = configuration.thirdParty.avatarUrl
 	val profileUrl = configuration.thirdParty.profileUrl
@@ -48,34 +52,39 @@ fun registerWebhookCallbackListeners( coroutineScope: CoroutineScope, configurat
 		val serverPublicAddress = configuration.publicAddress.ifBlank { "${ server.serverIp }:${ server.serverPort }" }
 		val serverPublicUrl = serverUrl.format( serverPublicAddress )
 
-		if ( isRelayChannelConfigured ) coroutineScope.launch {
-			API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
+		coroutineScope.launch {
+			if ( isRelayChannelConfigured ) API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
 				author = EmbedAuthor( "The server is now open!" )
 				description = "Join at [`$serverPublicAddress`]($serverPublicUrl)."
 				color = 0x00FF00 // Green
 			}
-		}
 
-		if ( isLogChannelConfigured ) coroutineScope.launch {
-			val serverIconFile = Path( server.runDirectory.absolutePath, configuration.serverIconFileName )
+			if ( isLogChannelConfigured ) {
+				val serverIconFile = Path( server.runDirectory.absolutePath, configuration.serverIconFileName )
 
-			val embedBuilder = EmbedBuilder().apply {
-				title = "Server Started"
-				fields = listOf(
-					EmbedField( name = "IP Address", value = "[`$serverPublicAddress`]($serverPublicUrl)", inline = false ),
-					EmbedField( name = "Version", value = server.version, inline = true ),
-					EmbedField( name = "Brand", value = server.serverModName, inline = true )
-				)
-				footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
-				timestamp = getCurrentDateTimeISO8601()
-				color = 0x00FF00 // Green
+				val embedBuilder = EmbedBuilder().apply {
+					title = "Server Started"
+					fields = listOf(
+						EmbedField( name = "IP Address", value = "[`$serverPublicAddress`]($serverPublicUrl)", inline = false ),
+						EmbedField( name = "Version", value = server.version, inline = true ),
+						EmbedField( name = "Whitelist", value = if ( server.playerManager.isWhitelistEnabled ) "Enabled" else "Disabled", inline = true ),
+						EmbedField( name = "Brand", value = server.serverModName, inline = true )
+					)
+					footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
+					timestamp = getCurrentDateTimeISO8601()
+					color = 0x00FF00 // Green
+				}
+
+				if ( serverIconFile.exists() ) {
+					embedBuilder.thumbnail = EmbedThumbnail( url = "attachment://${ serverIconFile.fileName }" )
+					API.sendWebhookEmbedWithAttachment( logWebhookIdentifier, logWebhookToken, serverIconFile, embedBuilder.build() )
+				} else {
+					API.sendWebhookEmbed( logWebhookIdentifier, logWebhookToken, embedBuilder.build() )
+				}
 			}
 
-			if ( serverIconFile.exists() ) {
-				embedBuilder.thumbnail = EmbedThumbnail( url = "attachment://${ serverIconFile.fileName }" )
-				API.sendWebhookEmbedWithAttachment( logWebhookIdentifier, logWebhookToken, serverIconFile, embedBuilder.build() )
-			} else {
-				API.sendWebhookEmbed( logWebhookIdentifier, logWebhookToken, embedBuilder.build() )
+			if ( isStatusCategoryConfigured ) API.updateChannel( statusCategoryIdentifier ) {
+				name = statusCategoryName.format( "Online" )
 			}
 		}
 	}
@@ -83,33 +92,37 @@ fun registerWebhookCallbackListeners( coroutineScope: CoroutineScope, configurat
 	ServerLifecycleEvents.SERVER_STOPPING.register { server ->
 		val serverUptime = ( Instant.now().epochSecond - serverStartTime.epochSecond ).toHumanReadableTime()
 
-		if ( isRelayChannelConfigured ) coroutineScope.launch {
-			API.sendWebhookEmbedWithoutWaiting( relayWebhookIdentifier, relayWebhookToken ) {
+		coroutineScope.launch {
+			if ( isRelayChannelConfigured ) API.sendWebhookEmbedWithoutWaiting( relayWebhookIdentifier, relayWebhookToken ) {
 				author = EmbedAuthor( "The server has closed." )
 				description = "Open for $serverUptime."
 				color = 0xFF0000 // Red
 			}
-		}
 
-		if ( isLogChannelConfigured ) coroutineScope.launch {
-			val serverIconFile = Path( server.runDirectory.absolutePath, configuration.serverIconFileName )
+			if ( isLogChannelConfigured ) {
+				val serverIconFile = Path( server.runDirectory.absolutePath, configuration.serverIconFileName )
 
-			val embedBuilder = EmbedBuilder().apply {
-				title = "Server Stopped"
-				fields = listOf(
-					EmbedField( name = "Started At", value = serverStartTime.formatInUTC( configuration.dateTimeFormat ), inline = true ),
-					EmbedField( name = "Uptime", value = serverUptime, inline = true )
-				)
-				footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
-				timestamp = getCurrentDateTimeISO8601()
-				color = 0xFF0000 // Red
+				val embedBuilder = EmbedBuilder().apply {
+					title = "Server Stopped"
+					fields = listOf(
+						EmbedField( name = "Started At", value = serverStartTime.formatInUTC( configuration.dateTimeFormat ), inline = true ),
+						EmbedField( name = "Uptime", value = serverUptime, inline = true )
+					)
+					footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
+					timestamp = getCurrentDateTimeISO8601()
+					color = 0xFF0000 // Red
+				}
+
+				if ( serverIconFile.exists() ) {
+					embedBuilder.thumbnail = EmbedThumbnail( url = "attachment://${ serverIconFile.fileName }" )
+					API.sendWebhookEmbedWithAttachmentWithoutWaiting( logWebhookIdentifier, logWebhookToken, serverIconFile, embedBuilder.build() )
+				} else {
+					API.sendWebhookEmbedWithoutWaiting( logWebhookIdentifier, logWebhookToken, embedBuilder.build() )
+				}
 			}
 
-			if ( serverIconFile.exists() ) {
-				embedBuilder.thumbnail = EmbedThumbnail( url = "attachment://${ serverIconFile.fileName }" )
-				API.sendWebhookEmbedWithAttachmentWithoutWaiting( logWebhookIdentifier, logWebhookToken, serverIconFile, embedBuilder.build() )
-			} else {
-				API.sendWebhookEmbedWithoutWaiting( logWebhookIdentifier, logWebhookToken, embedBuilder.build() )
+			if ( isStatusCategoryConfigured ) API.updateChannel( statusCategoryIdentifier ) {
+				name = statusCategoryName.format( "Offline" )
 			}
 		}
 	}
@@ -129,8 +142,8 @@ fun registerWebhookCallbackListeners( coroutineScope: CoroutineScope, configurat
 		val playerProfileUrl = profileUrl.format( player.uuidAsString )
 		val playerAvatarUrl = avatarUrl.format( player.uuidAsString )
 
-		if ( isRelayChannelConfigured ) coroutineScope.launch {
-			API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
+		coroutineScope.launch {
+			if ( isRelayChannelConfigured ) API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
 				author = EmbedAuthor(
 					name = "${ player.name.string } joined.",
 					url = playerProfileUrl,
@@ -138,23 +151,28 @@ fun registerWebhookCallbackListeners( coroutineScope: CoroutineScope, configurat
 				)
 				color = 0xFFFFFF // White
 			}
-		}
 
-		if ( isLogChannelConfigured ) coroutineScope.launch {
-			API.sendWebhookEmbed( logWebhookIdentifier, logWebhookToken ) {
-				title = "Player Joined"
-				fields = listOf(
-					EmbedField( name = "Name", value = player.name.string, inline = true ),
-					EmbedField( name = "Nickname", value = player.getNickName() ?: "*Not set*", inline = true ),
-					EmbedField( name = "IP Address", value = "[`$playerIPAddress`](${ ipAddressUrl.format( playerIPAddress ) })", inline = true ),
-					EmbedField( name = "Dimension", value = player.getDimensionName(), inline = true ),
-					EmbedField( name = "Position", value = player.pos.toHumanReadableString(), inline = true ),
-					EmbedField( name = "Unique Identifier", value = "[`${ player.uuidAsString }`]($playerProfileUrl)", inline = false )
-				)
-				thumbnail = EmbedThumbnail( url = playerAvatarUrl )
-				footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
-				timestamp = getCurrentDateTimeISO8601()
-				color = 0xFFFFFF // White
+			if ( isLogChannelConfigured ) {
+				API.sendWebhookEmbed( logWebhookIdentifier, logWebhookToken ) {
+					title = "Player Joined"
+					fields = listOf(
+						EmbedField( name = "Name", value = player.name.string, inline = true ),
+						EmbedField( name = "Nickname", value = player.getNickName() ?: "*Not set*", inline = true ),
+						EmbedField( name = "IP Address", value = "[`$playerIPAddress`](${ ipAddressUrl.format( playerIPAddress ) })", inline = true ),
+						EmbedField( name = "Operator", value = if ( player.isOperator() ) "Yes" else "No", inline = true ),
+						EmbedField( name = "Dimension", value = player.getDimensionName(), inline = true ),
+						EmbedField( name = "Position", value = player.pos.toHumanReadableString(), inline = true ),
+						EmbedField( name = "Unique Identifier", value = "[`${ player.uuidAsString }`]($playerProfileUrl)", inline = false )
+					)
+					thumbnail = EmbedThumbnail( url = playerAvatarUrl )
+					footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
+					timestamp = getCurrentDateTimeISO8601()
+					color = 0xFFFFFF // White
+				}
+			}
+
+			if ( isStatusCategoryConfigured ) API.updateChannel( statusCategoryIdentifier ) {
+				name = statusCategoryName.format( "${ player.server.currentPlayerCount } playing" )
 			}
 		}
 
@@ -166,8 +184,8 @@ fun registerWebhookCallbackListeners( coroutineScope: CoroutineScope, configurat
 		val playerProfileUrl = profileUrl.format( player.uuidAsString )
 		val playerAvatarUrl = avatarUrl.format( player.uuidAsString )
 
-		if ( isRelayChannelConfigured ) coroutineScope.launch {
-			API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
+		coroutineScope.launch {
+			if ( isRelayChannelConfigured ) API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
 				author = EmbedAuthor(
 					name = "${ player.name.string } left.",
 					url = playerProfileUrl,
@@ -175,23 +193,27 @@ fun registerWebhookCallbackListeners( coroutineScope: CoroutineScope, configurat
 				)
 				color = 0xFFFFFF // White
 			}
-		}
 
-		if ( isLogChannelConfigured ) coroutineScope.launch {
-			API.sendWebhookEmbed( logWebhookIdentifier, logWebhookToken ) {
-				title = "Player Left"
-				fields = listOf(
-					EmbedField( name = "Name", value = player.name.string, inline = true ),
-					EmbedField( name = "Nickname", value = player.getNickName() ?: "*Not set*", inline = true ),
-					EmbedField( name = "IP Address", value = "[`$playerIPAddress`](${ ipAddressUrl.format( playerIPAddress ) })", inline = true ),
-					EmbedField( name = "Dimension", value = player.getDimensionName(), inline = true ),
-					EmbedField( name = "Position", value = player.pos.toHumanReadableString(), inline = true ),
-					EmbedField( name = "Unique Identifier", value = "[`${ player.uuidAsString }`]($playerProfileUrl)", inline = false )
-				)
-				thumbnail = EmbedThumbnail( url = playerAvatarUrl )
-				footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
-				timestamp = getCurrentDateTimeISO8601()
-				color = 0xFFFFFF // White
+			if ( isLogChannelConfigured ) {
+				API.sendWebhookEmbed( logWebhookIdentifier, logWebhookToken ) {
+					title = "Player Left"
+					fields = listOf(
+						EmbedField( name = "Name", value = player.name.string, inline = true ),
+						EmbedField( name = "Nickname", value = player.getNickName() ?: "*Not set*", inline = true ),
+						EmbedField( name = "IP Address", value = "[`$playerIPAddress`](${ ipAddressUrl.format( playerIPAddress ) })", inline = true ),
+						EmbedField( name = "Dimension", value = player.getDimensionName(), inline = true ),
+						EmbedField( name = "Position", value = player.pos.toHumanReadableString(), inline = true ),
+						EmbedField( name = "Unique Identifier", value = "[`${ player.uuidAsString }`]($playerProfileUrl)", inline = false )
+					)
+					thumbnail = EmbedThumbnail( url = playerAvatarUrl )
+					footer = EmbedFooter( text = getCurrentDateTimeUTC( configuration.dateTimeFormat ) )
+					timestamp = getCurrentDateTimeISO8601()
+					color = 0xFFFFFF // White
+				}
+			}
+
+			if ( isStatusCategoryConfigured ) API.updateChannel( statusCategoryIdentifier ) {
+				name = statusCategoryName.format( "${ player.server.currentPlayerCount } playing" )
 			}
 		}
 
@@ -224,6 +246,7 @@ fun registerWebhookCallbackListeners( coroutineScope: CoroutineScope, configurat
 					EmbedField( name = "Attacker", value = damageSource.attacker?.name?.string ?: "*Unknown*", inline = true ),
 					EmbedField( name = "Source", value = damageSource.source?.name?.string  ?: "*Unknown*", inline = true ),
 					EmbedField( name = "Message", value = deathMessage, inline = false ),
+					EmbedField( name = "Score", value = player.score.toString(), inline = false ),
 					EmbedField( name = "Dimension", value = player.getDimensionName(), inline = true ),
 					EmbedField( name = "Position", value = player.pos.toHumanReadableString(), inline = true ),
 					EmbedField( name = "Unique Identifier", value = "[`${ player.uuidAsString }`]($playerProfileUrl)", inline = false )

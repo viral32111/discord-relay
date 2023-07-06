@@ -12,3 +12,5 @@ fun ServerPlayerEntity.getDimensionName(): String =
 	}
 
 fun ServerPlayerEntity.getNickName(): String? = displayName.string.takeUnless { it == name.string }
+
+fun ServerPlayerEntity.isOperator(): Boolean = this.server.playerManager.opList.get( this.gameProfile ) != null

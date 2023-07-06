@@ -5,6 +5,7 @@ import com.viral32111.discordrelay.HTTP
 import com.viral32111.discordrelay.JSON
 import com.viral32111.discordrelay.config.Configuration
 import com.viral32111.discordrelay.createFormData
+import com.viral32111.discordrelay.discord.builder.ChannelBuilder
 import com.viral32111.discordrelay.discord.data.*
 import com.viral32111.discordrelay.discord.data.Gateway
 import kotlinx.serialization.encodeToString
@@ -48,7 +49,7 @@ object API {
 
 	// https://discord.com/developers/docs/topics/gateway#get-gateway-bot
 	suspend fun getGateway(): Gateway = JSON.decodeFromJsonElement( request(
-		method = "GET",
+		method = HTTP.Method.Get,
 		endpoint = "gateway/bot"
 	) )
 
@@ -79,9 +80,16 @@ object API {
 	suspend fun createMessage( channelIdentifier: String, embed: Embed ) = createMessage( channelIdentifier, content = null, embed = embed )
 	*/
 
+	// https://discord.com/developers/docs/resources/channel#modify-channel
+	suspend fun updateChannel( identifier: String, builderBlock: ChannelBuilder.() -> Unit ): Guild.Channel = JSON.decodeFromJsonElement( request(
+		method = HTTP.Method.Patch,
+		endpoint = "channels/$identifier",
+		payload = JSON.encodeToJsonElement( ChannelBuilder().apply( builderBlock ).build() ) as JsonObject
+	) )
+
 	// https://discord.com/developers/docs/resources/webhook#execute-webhook
 	private suspend fun sendWebhookText( identifier: String, token: String, shouldWait: Boolean, builderBlock: WebhookMessageBuilder.() -> Unit ): JsonElement = request(
-		method = "POST",
+		method = HTTP.Method.Post,
 		endpoint = "webhooks/$identifier/$token?wait=$shouldWait",
 		payload = JSON.encodeToJsonElement( WebhookMessageBuilder().apply( builderBlock ).apply { preventMentions() }.build() ) as JsonObject
 	)
@@ -91,7 +99,7 @@ object API {
 		{ sendWebhookText( identifier, token, false, builderBlock ) }
 
 	private suspend fun sendWebhookEmbed( identifier: String, token: String, shouldWait: Boolean, embed: Embed ): JsonElement = request(
-		method = "POST",
+		method = HTTP.Method.Post,
 		endpoint = "webhooks/$identifier/$token?wait=$shouldWait",
 		payload = JSON.encodeToJsonElement( createWebhookMessage {
 			preventMentions()

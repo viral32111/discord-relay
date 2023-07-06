@@ -19,13 +19,11 @@ import org.slf4j.LoggerFactory
 import java.nio.file.StandardOpenOption
 import kotlin.io.path.*
 
-// TODO: Player's client information in player join #log embed
 // TODO: VPN/IP lookup in player join #log embed
-// TODO: Server whitelist status in server started #log embed
-// TODO: Discord category status
+// TODO: Player kick/ban/pardon in #log embed
+// TODO: Banned player attempted join in #log embed
 // TODO: API call rate limiting
 // TODO: Check Gateway 4xxx close codes for resume/reconnect
-// TODO: Use role color for name color in relayed message
 
 @Suppress( "UNUSED" )
 class DiscordRelay: DedicatedServerModInitializer {
@@ -51,7 +49,7 @@ class DiscordRelay: DedicatedServerModInitializer {
 		HTTP.initialize( configuration )
 		API.initialize( configuration )
 
-		registerWebhookCallbackListeners( coroutineScope, configuration )
+		registerCallbackListeners( coroutineScope, configuration )
 
 		ServerLifecycleEvents.SERVER_STARTED.register { server ->
 			val gateway = Gateway( configuration, server.playerManager )
