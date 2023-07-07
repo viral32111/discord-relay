@@ -28,10 +28,7 @@
 			"value": "com.viral32111.discordrelay.DiscordRelay"
 		} ]
 	},
-	"mixins": [ {
-		"environment": "server",
-		"config": "discordrelay.mixins.json"
-	} ],
+	"mixins": [],
 
 	"depends": {
 		"java": ">=${ java }",

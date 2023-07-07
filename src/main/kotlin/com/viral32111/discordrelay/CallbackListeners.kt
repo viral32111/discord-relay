@@ -1,6 +1,5 @@
 package com.viral32111.discordrelay
 
-import com.viral32111.discordrelay.callback.PlayerAdvancementCompletedCallback
 import com.viral32111.discordrelay.config.Configuration
 import com.viral32111.discordrelay.discord.API
 import com.viral32111.discordrelay.discord.data.*
@@ -8,14 +7,17 @@ import com.viral32111.discordrelay.helper.formatInUTC
 import com.viral32111.discordrelay.helper.getCurrentDateTimeISO8601
 import com.viral32111.discordrelay.helper.getCurrentDateTimeUTC
 import com.viral32111.discordrelay.helper.toHumanReadableTime
+import com.viral32111.events.callback.server.PlayerCompleteAdvancementCallback
 import com.viral32111.events.callback.server.PlayerDeathCallback
 import com.viral32111.events.callback.server.PlayerJoinCallback
 import com.viral32111.events.callback.server.PlayerLeaveCallback
+import com.viral32111.events.getColor
+import com.viral32111.events.getText
+import com.viral32111.events.getType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents
-import net.minecraft.advancement.AdvancementFrame
 import net.minecraft.util.ActionResult
 import net.minecraft.util.math.Vec3d
 import java.net.InetSocketAddress
@@ -269,16 +271,15 @@ fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Co
 		ActionResult.PASS
 	}
 
-	PlayerAdvancementCompletedCallback.EVENT.register { player, advancement, _, shouldAnnounceToChat ->
+	PlayerCompleteAdvancementCallback.EVENT.register { player, advancement, _, shouldAnnounceToChat ->
 		if ( !shouldAnnounceToChat ) return@register ActionResult.PASS
 
 		val playerProfileUrl = profileUrl.format( player.uuidAsString )
 		val playerAvatarUrl = avatarUrl.format( player.uuidAsString )
 
 		val advancementTitle = advancement.display?.title?.string
-		val advancementText = advancement.display?.frame?.getText() ?: "gained the achievement"
-		val advancementType = advancement.display?.frame?.getType()
-		val advancementColor = advancement.display?.frame?.getColor()
+		val advancementText = advancement.getText() ?: "gained the achievement"
+		val advancementColor = advancement.getColor()
 
 		if ( isRelayChannelConfigured ) coroutineScope.launch {
 			API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
@@ -298,7 +299,7 @@ fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Co
 					EmbedField( name = "Name", value = player.name.string, inline = true ),
 					EmbedField( name = "Nickname", value = player.getNickName() ?: "*Not set*", inline = true ),
 					EmbedField( name = "Title", value = advancementTitle ?: "*Unknown*", inline = true ),
-					EmbedField( name = "Type", value = advancementType ?: "*Unknown*", inline = true ),
+					EmbedField( name = "Type", value = advancement.getType() ?: "*Unknown*", inline = true ),
 					EmbedField( name = "Dimension", value = player.getDimensionName(), inline = true ),
 					EmbedField( name = "Position", value = player.pos.toHumanReadableString(), inline = true ),
 					EmbedField( name = "Unique Identifier", value = "[`${ player.uuidAsString }`]($playerProfileUrl)", inline = false )
@@ -313,28 +314,6 @@ fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Co
 		ActionResult.PASS
 	}
 }
-
-private fun AdvancementFrame?.getText(): String? =
-	when ( this ) {
-		AdvancementFrame.TASK -> "has made the advancement"
-		AdvancementFrame.CHALLENGE -> "completed the challenge"
-		AdvancementFrame.GOAL -> "reached the goal"
-		else -> null
-	}
-
-private fun AdvancementFrame?.getType(): String? =
-	when ( this ) {
-		AdvancementFrame.TASK -> "Advancement"
-		AdvancementFrame.CHALLENGE -> "Challenge"
-		AdvancementFrame.GOAL -> "Goal"
-		else -> null
-	}
-
-private fun AdvancementFrame?.getColor(): Int =
-	when ( this ) {
-		AdvancementFrame.CHALLENGE -> 0xA700A7 // Challenge Purple
-		else -> 0x54FB54 // Advancement Green
-	}
 
 private fun Vec3d.toHumanReadableString(): String =
 	arrayOf( this.getX(), this.getY(), this.getZ() )
