@@ -20,7 +20,6 @@ import kotlin.io.path.*
 // TODO: Player kick/ban/pardon in #log embed
 // TODO: Banned player attempted join in #log embed
 // TODO: API call rate limiting - currently if a rate limit is hit, a HTTP exception is thrown and the entire mod stops working
-// TODO: Check Gateway 4xxx close codes for resume/reconnect
 // TODO: Base mod for shared code (HTTP, configuration, version & time helpers, extensions methods, etc.)
 
 @Suppress( "UNUSED" )

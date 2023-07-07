@@ -422,11 +422,14 @@ class Gateway( private val configuration: Configuration, private val playerManag
 			DiscordRelay.LOGGER.debug( "Cancelling gateway coroutines..." )
 			coroutineScope.cancel()
 
-			// TODO: Check code against https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-close-event-codes
-			if ( code == WebSocketCloseCode.GoingAway || code == WebSocketCloseCode.ProtocolError ) {
+			// Unknown to Not Authenticated, or Already Authenticated to Session Timed Out - https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-close-event-codes
+			val canResumeFromCloseCode = code in 4000 .. 4003 || code in 4005 .. 4009
+
+			// TODO: This technically doesn't stop reconnecting when this evaluates to false, as the gateway open/awaitClosure call is wrapped in a while loop in DiscordRelay.kt that forever reconnects anyway
+			if ( code == WebSocketCloseCode.GoingAway || code == WebSocketCloseCode.ProtocolError || canResumeFromCloseCode ) {
 				DiscordRelay.LOGGER.debug( "Reconnecting due to non-1000 close code..." )
 				coroutineScope.launch {
-					tryReconnect( false )
+					tryReconnect( canResumeFromCloseCode )
 				}
 			}
 
