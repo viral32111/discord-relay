@@ -15,6 +15,7 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
 import java.nio.file.Files
 import java.nio.file.Path
+import kotlin.jvm.optionals.getOrElse
 
 object API {
 	private lateinit var apiBaseUrl: String
@@ -30,19 +31,28 @@ object API {
 		defaultHttpRequestHeaders[ "Authorization" ] = "Bot ${ configuration.discord.application.token }"
 	}
 
-	private suspend fun request( endpoint: String, method: String = "GET" ): JsonElement {
-		val httpResponse = HTTP.request( method, "$apiBaseUrl/$endpoint", headers = defaultHttpRequestHeaders )
-		if ( httpResponse.statusCode() < 200 || httpResponse.statusCode() >= 300 ) throw HTTP.HttpException( httpResponse.statusCode(), httpResponse.request().method(), httpResponse.request().uri() )
+	private suspend fun request( method: String, endpoint: String, payload: JsonObject? = null ): JsonElement {
+		val httpRequestHeaders = defaultHttpRequestHeaders.toMutableMap() // Creates a copy
+		if ( payload != null ) httpRequestHeaders[ "Content-Type" ] = "application/json; charset=utf-8"
 
-		return if ( httpResponse.statusCode() == 204 ) JSON.encodeToJsonElement( "" ) else JSON.decodeFromString( httpResponse.body() )
-	}
+		val httpResponse = HTTP.request( method, "$apiBaseUrl/$endpoint", httpRequestHeaders, body = if ( payload != null ) JSON.encodeToString( payload ) else null )
 
-	private suspend fun request( endpoint: String, payload: JsonObject, method: String = "GET" ): JsonElement {
-		val httpRequestHeaders = defaultHttpRequestHeaders.toMutableMap()
-		httpRequestHeaders[ "Content-Type" ] = "application/json; charset=utf-8"
+		val httpResponseStatusCode = httpResponse.statusCode()
+		val httpResponseHeaders = httpResponse.headers()
 
-		val httpResponse = HTTP.request( method, "$apiBaseUrl/$endpoint", httpRequestHeaders, JSON.encodeToString( payload ) )
-		if ( httpResponse.statusCode() < 200 || httpResponse.statusCode() >= 300 ) throw HTTP.HttpException( httpResponse.statusCode(), httpResponse.request().method(), httpResponse.request().uri() )
+		val rateLimitRequestLimit = httpResponseHeaders.firstValue( "X-RateLimit-Limit" ).getOrElse { null }
+		val rateLimitRemainingRequests = httpResponseHeaders.firstValue( "X-RateLimit-Remaining" ).getOrElse { null }
+		val rateLimitResetTimestamp = httpResponseHeaders.firstValue( "X-RateLimit-Reset" ).getOrElse { null }
+		val rateLimitResetAfterSeconds = httpResponseHeaders.firstValue( "X-RateLimit-Reset-After" ).getOrElse { null }
+		val rateLimitBucketIdentifier = httpResponseHeaders.firstValue( "X-RateLimit-Bucket" ).getOrElse { null }
+		DiscordRelay.LOGGER.debug( "$rateLimitRemainingRequests of $rateLimitRequestLimit request(s) remaining for $method '$endpoint' ($rateLimitBucketIdentifier), wait $rateLimitResetAfterSeconds second(s) until $rateLimitResetTimestamp." )
+
+		if ( httpResponseStatusCode == 429 ) {
+			val rateLimitIsGlobal = httpResponseHeaders.firstValue( "X-RateLimit-Global" ).getOrElse { null } == "1"
+			val rateLimitScopeName = httpResponseHeaders.firstValue( "X-RateLimit-Scope" ).getOrElse { null }
+
+			DiscordRelay.LOGGER.warn( "Hit ${ if ( rateLimitIsGlobal ) "global" else "route" } rate limit for $method '$endpoint' (Bucket: '$rateLimitBucketIdentifier', Scope: '$rateLimitScopeName') with $rateLimitRemainingRequests of $rateLimitRequestLimit remaining request(s)! Wait $rateLimitResetAfterSeconds second(s) until $rateLimitResetTimestamp." )
+		} else if ( httpResponseStatusCode < 200 || httpResponseStatusCode >= 300 ) throw HTTP.HttpException( httpResponseStatusCode, httpResponse.request().method(), httpResponse.request().uri() )
 
 		return if ( httpResponse.statusCode() == 204 ) JSON.encodeToJsonElement( "" ) else JSON.decodeFromString( httpResponse.body() )
 	}
