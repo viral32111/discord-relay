@@ -182,7 +182,8 @@ fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Co
 			}
 
 			if ( isStatusCategoryConfigured ) API.updateChannel( statusCategoryIdentifier ) {
-				name = statusCategoryName.format( "${ player.server.currentPlayerCount } playing" )
+				val playerCount = player.server.currentPlayerCount
+				name = statusCategoryName.format( if ( playerCount > 0 ) "${ player.server.currentPlayerCount } playing" else "Empty" )
 			}
 		}
 
@@ -223,7 +224,8 @@ fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Co
 			}
 
 			if ( isStatusCategoryConfigured ) API.updateChannel( statusCategoryIdentifier ) {
-				name = statusCategoryName.format( "${ player.server.currentPlayerCount } playing" )
+				val playerCount = player.server.currentPlayerCount
+				name = statusCategoryName.format( if ( playerCount > 0 ) "${ player.server.currentPlayerCount } playing" else "Empty" )
 			}
 		}
 
