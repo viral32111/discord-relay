@@ -8,14 +8,18 @@ import com.viral32111.discordrelay.createFormData
 import com.viral32111.discordrelay.discord.builder.ChannelBuilder
 import com.viral32111.discordrelay.discord.data.*
 import com.viral32111.discordrelay.discord.data.Gateway
+import kotlinx.coroutines.time.delay
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
+import java.lang.RuntimeException
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Duration
 import kotlin.jvm.optionals.getOrElse
+import kotlin.math.roundToLong
 
 object API {
 	private lateinit var apiBaseUrl: String
@@ -31,7 +35,9 @@ object API {
 		defaultHttpRequestHeaders[ "Authorization" ] = "Bot ${ configuration.discord.application.token }"
 	}
 
-	private suspend fun request( method: String, endpoint: String, payload: JsonObject? = null ): JsonElement {
+	private suspend fun request( method: String, endpoint: String, payload: JsonObject? = null, retryDepth: Int = 0 ): JsonElement {
+		if ( retryDepth > 0 ) DiscordRelay.LOGGER.debug( "Attempt #$retryDepth of retrying $method '$endpoint'..." )
+
 		val httpRequestHeaders = defaultHttpRequestHeaders.toMutableMap() // Creates a copy
 		if ( payload != null ) httpRequestHeaders[ "Content-Type" ] = "application/json; charset=utf-8"
 
@@ -40,19 +46,28 @@ object API {
 		val httpResponseStatusCode = httpResponse.statusCode()
 		val httpResponseHeaders = httpResponse.headers()
 
-		val rateLimitRequestLimit = httpResponseHeaders.firstValue( "X-RateLimit-Limit" ).getOrElse { null }
-		val rateLimitRemainingRequests = httpResponseHeaders.firstValue( "X-RateLimit-Remaining" ).getOrElse { null }
-		val rateLimitResetTimestamp = httpResponseHeaders.firstValue( "X-RateLimit-Reset" ).getOrElse { null }
-		val rateLimitResetAfterSeconds = httpResponseHeaders.firstValue( "X-RateLimit-Reset-After" ).getOrElse { null }
+		val rateLimitRequestLimit = httpResponseHeaders.firstValue( "X-RateLimit-Limit" ).getOrElse { null }?.toLongOrNull()
+		val rateLimitRemainingRequests = httpResponseHeaders.firstValue( "X-RateLimit-Remaining" ).getOrElse { null }?.toLongOrNull()
+		val rateLimitResetTimestamp = httpResponseHeaders.firstValue( "X-RateLimit-Reset" ).getOrElse { null }?.toDoubleOrNull()
+		val rateLimitResetAfterSeconds = httpResponseHeaders.firstValue( "X-RateLimit-Reset-After" ).getOrElse { null }?.toDoubleOrNull()
 		val rateLimitBucketIdentifier = httpResponseHeaders.firstValue( "X-RateLimit-Bucket" ).getOrElse { null }
-		DiscordRelay.LOGGER.debug( "$rateLimitRemainingRequests of $rateLimitRequestLimit request(s) remaining for $method '$endpoint' ($rateLimitBucketIdentifier), wait $rateLimitResetAfterSeconds second(s) until $rateLimitResetTimestamp." )
+		DiscordRelay.LOGGER.debug( "$rateLimitRemainingRequests of $rateLimitRequestLimit request(s) remaining for $method '$endpoint' ($rateLimitBucketIdentifier), resets after $rateLimitResetAfterSeconds second(s) or at $rateLimitResetTimestamp." )
 
 		if ( httpResponseStatusCode == 429 ) {
 			val rateLimitIsGlobal = httpResponseHeaders.firstValue( "X-RateLimit-Global" ).getOrElse { null } == "1"
 			val rateLimitScopeName = httpResponseHeaders.firstValue( "X-RateLimit-Scope" ).getOrElse { null }
+			val rateLimit = JSON.decodeFromString<RateLimit>( httpResponse.body() )
 
-			DiscordRelay.LOGGER.warn( "Hit ${ if ( rateLimitIsGlobal ) "global" else "route" } rate limit for $method '$endpoint' (Bucket: '$rateLimitBucketIdentifier', Scope: '$rateLimitScopeName') with $rateLimitRemainingRequests of $rateLimitRequestLimit remaining request(s)! Wait $rateLimitResetAfterSeconds second(s) until $rateLimitResetTimestamp." )
-		} else if ( httpResponseStatusCode < 200 || httpResponseStatusCode >= 300 ) throw HTTP.HttpException( httpResponseStatusCode, httpResponse.request().method(), httpResponse.request().uri() )
+			DiscordRelay.LOGGER.warn( "Hit ${ if ( rateLimitIsGlobal || rateLimit.isGlobal ) "global" else "route" } rate limit for $method '$endpoint' (Bucket: '$rateLimitBucketIdentifier', Scope: '$rateLimitScopeName') with $rateLimitRemainingRequests of $rateLimitRequestLimit remaining request(s)! Retrying in ${ rateLimit.retryAfter } second(s)..." )
+
+			if ( retryDepth > 3 ) throw RuntimeException( "Attempted retry Discord API request $method '$endpoint' too many times" )
+
+			// Wait & retry
+			delay( Duration.ofSeconds( rateLimit.retryAfter.roundToLong() ) )
+			return request( method, endpoint, payload, retryDepth + 1 )
+		}
+
+		if ( httpResponseStatusCode < 200 || httpResponseStatusCode >= 300 ) throw HTTP.HttpException( httpResponseStatusCode, httpResponse.request().method(), httpResponse.request().uri() )
 
 		return if ( httpResponse.statusCode() == 204 ) JSON.encodeToJsonElement( "" ) else JSON.decodeFromString( httpResponse.body() )
 	}
