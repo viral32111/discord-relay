@@ -56,6 +56,8 @@ fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Co
 		val serverPublicAddress = configuration.publicAddress.ifBlank { "${ server.serverIp }:${ server.serverPort }" }
 		val serverPublicUrl = serverUrl.format( serverPublicAddress )
 
+		DiscordRelay.LOGGER.info( "Sending server online message..." )
+
 		coroutineScope.launch {
 			if ( isRelayChannelConfigured ) API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
 				author = EmbedAuthor( "The server is now open!" )
@@ -96,6 +98,8 @@ fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Co
 	ServerLifecycleEvents.SERVER_STOPPING.register { server ->
 		val serverUptime = ( Instant.now().epochSecond - serverStartTime.epochSecond ).toHumanReadableTime()
 
+		DiscordRelay.LOGGER.info( "Sending server offline message..." )
+
 		coroutineScope.launch {
 			if ( isRelayChannelConfigured ) API.sendWebhookEmbedWithoutWaiting( relayWebhookIdentifier, relayWebhookToken ) {
 				author = EmbedAuthor( "The server has closed." )
@@ -132,6 +136,8 @@ fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Co
 	}
 
 	ServerMessageEvents.CHAT_MESSAGE.register { message, player, _ ->
+		DiscordRelay.LOGGER.info( "Relaying chat message '${ message.content.string }' for player '${ player.name.string } (${ player.uuidAsString })...'" )
+
 		if ( isRelayChannelConfigured ) coroutineScope.launch {
 			API.sendWebhookText( relayWebhookIdentifier, relayWebhookToken ) {
 				this.avatarUrl = avatarUrl.format( player.uuidAsString )
@@ -147,6 +153,8 @@ fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Co
 
 		val playerProfileUrl = profileUrl.format( player.uuidAsString )
 		val playerAvatarUrl = avatarUrl.format( player.uuidAsString )
+
+		DiscordRelay.LOGGER.info( "Relaying join message for player '${ player.name.string } (${ player.uuidAsString })...'" )
 
 		coroutineScope.launch {
 			val ipAddress = if ( isProxyCheckConfigured && !ProxyCheck.isPrivate( playerIpAddress ) ) ProxyCheck.check( playerIpAddress ) else null
@@ -195,6 +203,8 @@ fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Co
 		val playerProfileUrl = profileUrl.format( player.uuidAsString )
 		val playerAvatarUrl = avatarUrl.format( player.uuidAsString )
 
+		DiscordRelay.LOGGER.info( "Relaying leave message for player '${ player.name.string } (${ player.uuidAsString })...'" )
+
 		coroutineScope.launch {
 			if ( isRelayChannelConfigured ) API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
 				author = EmbedAuthor(
@@ -238,6 +248,8 @@ fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Co
 		val playerProfileUrl = profileUrl.format( player.uuidAsString )
 		val playerAvatarUrl = avatarUrl.format( player.uuidAsString )
 
+		DiscordRelay.LOGGER.info( "Relaying death message '$deathMessage' for player '${ player.name.string } (${ player.uuidAsString })...'" )
+
 		if ( isRelayChannelConfigured ) coroutineScope.launch {
 			API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
 				author = EmbedAuthor(
@@ -280,8 +292,11 @@ fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Co
 		val playerAvatarUrl = avatarUrl.format( player.uuidAsString )
 
 		val advancementTitle = advancement.display?.title?.string
+		val advancementDescription = advancement.display?.description?.string?.plus( "." )
 		val advancementText = advancement.getText() ?: "gained the achievement"
 		val advancementColor = advancement.getColor()
+
+		DiscordRelay.LOGGER.info( "Relaying advancement '$advancementTitle' completion message for player '${ player.name.string } (${ player.uuidAsString })...'" )
 
 		if ( isRelayChannelConfigured ) coroutineScope.launch {
 			API.sendWebhookEmbed( relayWebhookIdentifier, relayWebhookToken ) {
@@ -290,6 +305,7 @@ fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Co
 					url = playerProfileUrl,
 					iconUrl = playerAvatarUrl
 				)
+				if ( !advancementDescription.isNullOrBlank() ) description = advancementDescription
 				color = advancementColor
 			}
 		}
@@ -301,6 +317,7 @@ fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Co
 					EmbedField( name = "Name", value = player.name.string, inline = true ),
 					EmbedField( name = "Nickname", value = player.getNickName() ?: "*Not set*", inline = true ),
 					EmbedField( name = "Title", value = advancementTitle ?: "*Unknown*", inline = true ),
+					EmbedField( name = "Description", value = advancementDescription ?: "*Unknown*", inline = false ),
 					EmbedField( name = "Type", value = advancement.getType() ?: "*Unknown*", inline = true ),
 					EmbedField( name = "Dimension", value = player.getDimensionName(), inline = true ),
 					EmbedField( name = "Position", value = player.pos.toHumanReadableString(), inline = true ),
