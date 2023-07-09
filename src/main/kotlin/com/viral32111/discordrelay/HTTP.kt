@@ -2,12 +2,16 @@ package com.viral32111.discordrelay
 
 import com.viral32111.discordrelay.config.Configuration
 import com.viral32111.discordrelay.helper.Version
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.future.await
+import java.net.ConnectException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.net.http.HttpTimeoutException
 import java.net.http.WebSocket
+import java.nio.channels.UnresolvedAddressException
 import java.time.Duration
 
 object HTTP {
@@ -66,10 +70,22 @@ object HTTP {
 		val httpRequest = httpRequestBuilder.build()
 		DiscordRelay.LOGGER.debug( "HTTP Request #$requestCounter: ${ httpRequest.method() } '${ httpRequest.uri() }' '${ body.orEmpty() }' (${ httpRequest.bodyPublisher().get().contentLength() } bytes)" )
 
-		val httpResponse = httpClient.sendAsync( httpRequest, HttpResponse.BodyHandlers.ofString() ).await()
-		DiscordRelay.LOGGER.debug( "HTTP Response #$requestCounter: ${ httpResponse.statusCode() } '${ httpResponse.body() }' (${ httpResponse.body().length } bytes)" )
+		try {
+			val httpResponse = httpClient.sendAsync( httpRequest, HttpResponse.BodyHandlers.ofString() ).await()
+			DiscordRelay.LOGGER.debug( "HTTP Response #$requestCounter: ${ httpResponse.statusCode() } '${ httpResponse.body() }' (${ httpResponse.body().length } bytes)" )
 
-		return httpResponse
+			return httpResponse
+		} catch ( exception: HttpTimeoutException ) {
+			DiscordRelay.LOGGER.error( "Timed out sending HTTP request! ($exception)" )
+		} catch ( exception: ConnectException ) {
+			DiscordRelay.LOGGER.error( "Failed to connect to HTTP server! ($exception)" )
+		} catch ( exception: UnresolvedAddressException ) {
+			DiscordRelay.LOGGER.error( "Unable to resolve HTTP server! ($exception)" )
+		}
+
+		DiscordRelay.LOGGER.debug( "Retrying HTTP request after 30 seconds..." )
+		delay( 30000 )
+		return request( method, url, headers, body, formData, parameters )
 	}
 
 	suspend fun startWebSocketConnection( url: URI, timeoutSeconds: Long, listener: WebSocket.Listener ): WebSocket {

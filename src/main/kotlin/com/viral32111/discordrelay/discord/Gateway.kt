@@ -431,6 +431,9 @@ class Gateway( private val configuration: Configuration, private val playerManag
 				coroutineScope.launch {
 					tryReconnect( canResumeFromCloseCode )
 				}
+			} else {
+				DiscordRelay.LOGGER.debug( "Confirming closure..." )
+				connectionClosureConfirmation?.complete( ClosureConfirmation( code, reason ) )
 			}
 
 			return CompletableFuture.completedFuture( null )

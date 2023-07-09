@@ -12,6 +12,7 @@ import net.fabricmc.loader.api.FabricLoader
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.net.ConnectException
+import java.net.http.HttpTimeoutException
 import java.nio.channels.UnresolvedAddressException
 import java.nio.file.StandardOpenOption
 import kotlin.io.path.*
@@ -60,12 +61,12 @@ class DiscordRelay: DedicatedServerModInitializer {
 							gateway.open( gatewayUrl )
 							confirmation = gateway.awaitClosure()
 							LOGGER.info( "Discord Gateway connection closed." )
+						} catch ( exception: HttpTimeoutException ) {
+							LOGGER.error( "Timed out sending HTTP request! ($exception)" )
 						} catch ( exception: ConnectException ) {
 							LOGGER.error( "Discord Gateway failed to connect! ($exception)" )
 						} catch ( exception: UnresolvedAddressException ) {
-							LOGGER.error( "Unable to resolve Discord Gateway hostname! ($exception)" )
-						} catch ( exception: Exception ) {
-							LOGGER.error( "Discord Gateway encountered an error! ($exception)" )
+							LOGGER.error( "Unable to resolve Discord Gateway! ($exception)" )
 						}
 
 						LOGGER.debug( "Waiting 30 seconds before reconnecting..." )
