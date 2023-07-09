@@ -4,16 +4,15 @@ import com.viral32111.discordrelay.config.Configuration
 import com.viral32111.discordrelay.discord.API
 import com.viral32111.discordrelay.discord.Gateway
 import com.viral32111.discordrelay.helper.Version
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import kotlinx.serialization.encodeToString
 import net.fabricmc.api.DedicatedServerModInitializer
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
 import net.fabricmc.loader.api.FabricLoader
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.net.ConnectException
+import java.nio.channels.UnresolvedAddressException
 import java.nio.file.StandardOpenOption
 import kotlin.io.path.*
 
@@ -51,13 +50,26 @@ class DiscordRelay: DedicatedServerModInitializer {
 
 				coroutineScope.launch {
 					val gatewayUrl = API.getGateway().url
-					LOGGER.debug( "Discord Gateway URL: '${ gatewayUrl }'" )
+					LOGGER.debug( "Discord Gateway URL: '$gatewayUrl'" )
 
 					do {
-						LOGGER.info( "Opening Discord Gateway connection..." )
-						gateway.open( gatewayUrl )
-						val confirmation = gateway.awaitClosure()
-						LOGGER.info( "Discord Gateway connection closed." )
+						var confirmation: Gateway.ClosureConfirmation? = null
+
+						try {
+							LOGGER.info( "Opening Discord Gateway connection..." )
+							gateway.open( gatewayUrl )
+							confirmation = gateway.awaitClosure()
+							LOGGER.info( "Discord Gateway connection closed." )
+						} catch ( exception: ConnectException ) {
+							LOGGER.error( "Discord Gateway failed to connect! ($exception)" )
+						} catch ( exception: UnresolvedAddressException ) {
+							LOGGER.error( "Unable to resolve Discord Gateway hostname! ($exception)" )
+						} catch ( exception: Exception ) {
+							LOGGER.error( "Discord Gateway encountered an error! ($exception)" )
+						}
+
+						LOGGER.debug( "Waiting 30 seconds before reconnecting..." )
+						delay( 30000 ) // Wait 30 seconds
 					} while ( confirmation?.isServerStopping != true )
 				}
 

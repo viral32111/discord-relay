@@ -155,7 +155,7 @@ class Gateway( private val configuration: Configuration, private val playerManag
 			DiscordRelay.LOGGER.warn( "Timed out while waiting for a heartbeat acknowledgement!" )
 
 			DiscordRelay.LOGGER.debug( "Closing WebSocket connection..." )
-			close( WebSocketCloseCode.ProtocolError, "No heartbeat acknowledgement." )
+			close( WebSocketCloseCode.GoingAway, "No heartbeat acknowledgement." )
 		}
 	}
 
@@ -426,7 +426,7 @@ class Gateway( private val configuration: Configuration, private val playerManag
 			val canResumeFromCloseCode = code in 4000 .. 4003 || code in 4005 .. 4009
 
 			// TODO: This technically doesn't stop reconnecting when this evaluates to false, as the gateway open/awaitClosure call is wrapped in a while loop in DiscordRelay.kt that forever reconnects anyway
-			if ( code == WebSocketCloseCode.GoingAway || code == WebSocketCloseCode.ProtocolError || canResumeFromCloseCode ) {
+			if ( code == WebSocketCloseCode.GoingAway || canResumeFromCloseCode ) {
 				DiscordRelay.LOGGER.debug( "Reconnecting due to non-1000 close code..." )
 				coroutineScope.launch {
 					tryReconnect( canResumeFromCloseCode )

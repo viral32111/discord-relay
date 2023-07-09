@@ -9,5 +9,4 @@ import java.net.http.WebSocket
 object WebSocketCloseCode {
 	const val Normal = WebSocket.NORMAL_CLOSURE
 	const val GoingAway = 1001
-	const val ProtocolError = 1002
 }
