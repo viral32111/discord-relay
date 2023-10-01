@@ -291,8 +291,8 @@ fun registerCallbackListeners( coroutineScope: CoroutineScope, configuration: Co
 		val playerProfileUrl = profileUrl.format( player.uuidAsString )
 		val playerAvatarUrl = avatarUrl.format( player.uuidAsString )
 
-		val advancementTitle = advancement.display?.title?.string
-		val advancementDescription = advancement.display?.description?.string?.plus( "." )
+		val advancementTitle = advancement.display?.get()?.title?.string
+		val advancementDescription = advancement.display?.get()?.description?.string?.plus( "." )
 		val advancementText = advancement.getText() ?: "gained the achievement"
 		val advancementColor = advancement.getColor()
 
