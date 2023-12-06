@@ -8,7 +8,7 @@ on:
       - 'src/**/*'
       - '*.gradle.kts'
       - 'gradle.properties'
-      - '.github/workflows/ci.yml'
+      - '.github/workflows/*.yml'
     branches:
       - '**'
     tags:
